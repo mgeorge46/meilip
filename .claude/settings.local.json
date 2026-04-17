@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where python *)",
+      "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" --version)",
+      "Bash(PGPASSWORD=heaven2870 psql -U postgres -d meili_prd01 -h localhost -c \"SELECT version\\(\\);\")",
+      "Bash(where psql *)",
+      "Read(//c/Program Files/PostgreSQL/**)",
+      "Bash(PGPASSWORD=heaven2870 \"C:/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -d meili_prd01 -h localhost -c \"SELECT current_database\\(\\);\")",
+      "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/pip.exe\" list *)",
+      "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" -m pip install --upgrade pip setuptools wheel)",
+      "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/pip.exe\" install *)",
+      "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/pip.exe\" show *)",
+      "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/django-admin.exe\" startproject *)",
+      "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py makemigrations accounts core)",
+      "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py migrate)",
+      "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py test accounts core -v 2)",
+      "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py check)",
+      "Bash(PGPASSWORD=heaven2870 \"C:/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -d meili_prd01 -h localhost -c \"SELECT COUNT\\(*\\) AS roles FROM accounts_role; SELECT COUNT\\(*\\) AS currencies FROM core_currency; SELECT COUNT\\(*\\) AS cycles FROM core_billingcycle;\")",
+      "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py makemigrations accounting)",
+      "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py test accounting accounts core -v 1)",
+      "Bash(PGPASSWORD=heaven2870 \"C:/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -d meili_prd01 -h localhost -c \"SELECT code, name, system_code FROM accounting_account ORDER BY code;\")"
+    ]
+  }
+}

@@ -1,0 +1,488 @@
+"""Core entities — abstract base, Currency, Landlord, Estate, House, Tenant,
+TenantHouse, Employee, Supplier, BillingCycle, TaxType.
+
+All core entities inherit from TimeStampedModel + SoftDeleteModel. History is
+tracked via django-simple-history.
+"""
+
+from decimal import Decimal
+
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.db import models
+from django.utils import timezone
+from simple_history.models import HistoricalRecords
+
+from .fields import UGXField, USDField
+
+
+# ---------------------------------------------------------------------------
+# Abstract base
+# ---------------------------------------------------------------------------
+class TimeStampedModel(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        abstract = True
+
+
+class SoftDeleteQuerySet(models.QuerySet):
+    def alive(self):
+        return self.filter(is_deleted=False)
+
+    def dead(self):
+        return self.filter(is_deleted=True)
+
+
+class SoftDeleteManager(models.Manager):
+    def get_queryset(self):
+        return SoftDeleteQuerySet(self.model, using=self._db).filter(is_deleted=False)
+
+
+class AllObjectsManager(models.Manager):
+    def get_queryset(self):
+        return SoftDeleteQuerySet(self.model, using=self._db)
+
+
+class SoftDeleteModel(models.Model):
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    objects = SoftDeleteManager()
+    all_objects = AllObjectsManager()
+
+    class Meta:
+        abstract = True
+
+    def soft_delete(self, user=None):
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.deleted_by = user
+        self.save(update_fields=["is_deleted", "deleted_at", "deleted_by", "updated_at"])
+
+
+class CoreBaseModel(TimeStampedModel, SoftDeleteModel):
+    class Meta:
+        abstract = True
+
+
+# ---------------------------------------------------------------------------
+# Currency
+# ---------------------------------------------------------------------------
+class Currency(models.Model):
+    code = models.CharField(max_length=3, unique=True)  # UGX, USD, ...
+    name = models.CharField(max_length=64)
+    symbol = models.CharField(max_length=8, blank=True)
+    decimal_places = models.PositiveSmallIntegerField(default=0)
+    is_primary = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["code"]
+        verbose_name_plural = "currencies"
+
+    def __str__(self):
+        return self.code
+
+
+# ---------------------------------------------------------------------------
+# BillingCycle, TaxType (lookup/reference)
+# ---------------------------------------------------------------------------
+class BillingCycle(models.Model):
+    class Unit(models.TextChoices):
+        HOUR = "HOUR", "Hour"
+        DAY = "DAY", "Day"
+        WEEK = "WEEK", "Week"
+        MONTH = "MONTH", "Month"
+        QUARTER = "QUARTER", "Quarter"
+        SEMI_ANNUAL = "SEMI_ANNUAL", "Semi-Annual"
+        YEAR = "YEAR", "Year"
+
+    name = models.CharField(max_length=64, unique=True)
+    unit = models.CharField(max_length=16, choices=Unit.choices)
+    count = models.PositiveIntegerField(default=1)  # e.g., 2 weeks = WEEK * 2
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["unit", "count"]
+
+    def __str__(self):
+        return self.name
+
+
+class TaxType(models.Model):
+    class Kind(models.TextChoices):
+        VAT = "VAT", "VAT"
+        WITHHOLDING = "WITHHOLDING", "Withholding Tax"
+        OTHER = "OTHER", "Other"
+
+    code = models.CharField(max_length=32, unique=True)
+    name = models.CharField(max_length=64)
+    kind = models.CharField(max_length=16, choices=Kind.choices)
+    rate = models.DecimalField(max_digits=6, decimal_places=3, default=Decimal("0.000"))
+    is_active = models.BooleanField(default=False)
+    description = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ["code"]
+
+    def __str__(self):
+        return f"{self.code} ({self.rate}%)"
+
+
+# ---------------------------------------------------------------------------
+# Landlord / Estate / House
+# ---------------------------------------------------------------------------
+class CommissionType(models.TextChoices):
+    FIXED = "FIXED", "Fixed Amount"
+    PERCENTAGE = "PERCENTAGE", "Percentage"
+
+
+class CommissionScope(models.TextChoices):
+    PER_HOUSE = "PER_HOUSE", "Per House"
+    PER_ESTATE = "PER_ESTATE", "Per Estate"
+
+
+class BillingMode(models.TextChoices):
+    PREPAID = "PREPAID", "Prepaid"
+    POSTPAID = "POSTPAID", "Postpaid"
+
+
+class ProRataMode(models.TextChoices):
+    PRO_RATA = "PRO_RATA", "Pro-Rata Billing"
+    NEXT_CYCLE = "NEXT_CYCLE", "Next-Cycle Alignment"
+
+
+class Landlord(CoreBaseModel):
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        INACTIVE = "INACTIVE", "Inactive"
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="landlord_profile",
+    )
+    full_name = models.CharField(max_length=200)
+    phone = models.CharField(max_length=16)
+    email = models.EmailField(blank=True)
+    id_number = models.CharField(max_length=64, blank=True)
+    is_meili_owned = models.BooleanField(
+        default=False,
+        help_text="True for Meili-owned properties (no commission split).",
+    )
+    bank_name = models.CharField(max_length=120, blank=True)
+    bank_account_name = models.CharField(max_length=120, blank=True)
+    bank_account_number = models.CharField(max_length=64, blank=True)
+    bank_branch = models.CharField(max_length=120, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
+    notes = models.TextField(blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["full_name"]
+
+    def __str__(self):
+        return self.full_name
+
+
+class SettingsMixin(models.Model):
+    """Shared settings fields between Estate and House.
+
+    House values, when non-null, override Estate values via
+    `get_effective_setting(house, field_name)`.
+    """
+
+    currency = models.ForeignKey(
+        Currency, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    billing_cycle = models.ForeignKey(
+        BillingCycle, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    billing_mode = models.CharField(
+        max_length=16, choices=BillingMode.choices, null=True, blank=True
+    )
+    prorata_mode = models.CharField(
+        max_length=16, choices=ProRataMode.choices, null=True, blank=True
+    )
+    commission_type = models.CharField(
+        max_length=16, choices=CommissionType.choices, null=True, blank=True
+    )
+    commission_scope = models.CharField(
+        max_length=16, choices=CommissionScope.choices, null=True, blank=True
+    )
+    commission_amount = UGXField(null=True, blank=True)
+    commission_percent = models.DecimalField(
+        max_digits=6, decimal_places=3, null=True, blank=True
+    )
+    tax_type = models.ForeignKey(
+        TaxType, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    security_deposit_policy = models.CharField(max_length=120, blank=True)
+    initial_deposit_policy = models.CharField(max_length=120, blank=True)
+    account_manager = models.ForeignKey(
+        "core.Employee",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    collections_person = models.ForeignKey(
+        "core.Employee",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    water_billed_separately = models.BooleanField(null=True, blank=True)
+    garbage_billed_separately = models.BooleanField(null=True, blank=True)
+
+    class Meta:
+        abstract = True
+
+
+class Estate(CoreBaseModel, SettingsMixin):
+    landlord = models.ForeignKey(
+        Landlord, on_delete=models.PROTECT, related_name="estates"
+    )
+    name = models.CharField(max_length=200)
+    location = models.CharField(max_length=255, blank=True)
+    description = models.TextField(blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["landlord", "name"], name="uniq_estate_name_per_landlord"
+            )
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class House(CoreBaseModel, SettingsMixin):
+    class Occupancy(models.TextChoices):
+        VACANT = "VACANT", "Vacant"
+        OCCUPIED = "OCCUPIED", "Occupied"
+        UNDER_MAINTENANCE = "UNDER_MAINTENANCE", "Under Maintenance"
+
+    estate = models.ForeignKey(Estate, on_delete=models.PROTECT, related_name="houses")
+    landlord = models.ForeignKey(
+        Landlord, on_delete=models.PROTECT, null=True, blank=True, related_name="houses",
+        help_text="Optional override — defaults to estate.landlord when null.",
+    )
+    house_number = models.CharField(max_length=32)
+    name = models.CharField(max_length=120, blank=True)
+    description = models.TextField(blank=True)
+    periodic_rent = UGXField(null=True, blank=True)
+    occupancy_status = models.CharField(
+        max_length=24, choices=Occupancy.choices, default=Occupancy.VACANT
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["estate__name", "house_number"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["estate", "house_number"], name="uniq_house_number_per_estate"
+            )
+        ]
+
+    def __str__(self):
+        label = self.name or self.house_number
+        return f"{label} ({self.estate.name})"
+
+    @property
+    def effective_landlord(self):
+        return self.landlord or self.estate.landlord
+
+
+# ---------------------------------------------------------------------------
+# Employee
+# ---------------------------------------------------------------------------
+class Employee(CoreBaseModel):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="employee_profile"
+    )
+    full_name = models.CharField(max_length=200)
+    phone = models.CharField(max_length=16, blank=True)
+    id_number = models.CharField(max_length=64, blank=True)
+    manager = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reports",
+    )
+    requires_checker = models.BooleanField(
+        default=True,
+        help_text="False = Trusted employee (can self-approve payments). Never applies to void/credit-note/refund.",
+    )
+    is_active = models.BooleanField(default=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["full_name"]
+
+    def __str__(self):
+        return self.full_name
+
+
+# ---------------------------------------------------------------------------
+# Tenant
+# ---------------------------------------------------------------------------
+class Tenant(CoreBaseModel):
+    class PreferredNotification(models.TextChoices):
+        SMS = "SMS", "SMS"
+        WHATSAPP = "WHATSAPP", "WhatsApp"
+        EMAIL = "EMAIL", "Email"
+
+    class PreferredReceipt(models.TextChoices):
+        WHATSAPP = "WHATSAPP", "WhatsApp"
+        EMAIL = "EMAIL", "Email"
+        WEB = "WEB", "Web Console"
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tenant_profile",
+    )
+    full_name = models.CharField(max_length=200)
+    phone = models.CharField(max_length=16)
+    email = models.EmailField(blank=True)
+    id_number = models.CharField(max_length=64, blank=True)
+    next_of_kin_name = models.CharField(max_length=200, blank=True)
+    next_of_kin_phone = models.CharField(max_length=16, blank=True)
+    preferred_notification = models.CharField(
+        max_length=16,
+        choices=PreferredNotification.choices,
+        default=PreferredNotification.SMS,
+    )
+    preferred_receipt = models.CharField(
+        max_length=16,
+        choices=PreferredReceipt.choices,
+        default=PreferredReceipt.EMAIL,
+    )
+    sales_rep = models.ForeignKey(
+        Employee, on_delete=models.SET_NULL, null=True, blank=True, related_name="sold_tenants"
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["full_name"]
+
+    def __str__(self):
+        return self.full_name
+
+    @property
+    def derived_status(self):
+        """Active / Prospect Only / Exited — derived from TenantHouse records."""
+        statuses = set(self.tenancies.values_list("status", flat=True))
+        if not statuses:
+            return "Exited"
+        if TenantHouse.Status.ACTIVE in statuses:
+            return "Active"
+        if statuses == {TenantHouse.Status.EXITED}:
+            return "Exited"
+        return "Prospect Only"
+
+
+class TenantHouse(CoreBaseModel):
+    class Status(models.TextChoices):
+        PROSPECT = "PROSPECT", "Prospect"
+        ACTIVE = "ACTIVE", "Active"
+        EXITED = "EXITED", "Exited"
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.PROTECT, related_name="tenancies")
+    house = models.ForeignKey(House, on_delete=models.PROTECT, related_name="tenancies")
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PROSPECT)
+    move_in_date = models.DateField(null=True, blank=True)
+    move_out_date = models.DateField(null=True, blank=True)
+    billing_start_date = models.DateField(null=True, blank=True)
+    security_deposit = UGXField(null=True, blank=True)
+    initial_deposit = UGXField(null=True, blank=True)
+    sales_rep = models.ForeignKey(
+        Employee, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    account_manager = models.ForeignKey(
+        Employee, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    collections_person = models.ForeignKey(
+        Employee, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "house"],
+                condition=models.Q(is_deleted=False),
+                name="uniq_active_tenant_house",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.tenant.full_name} @ {self.house} [{self.status}]"
+
+
+# ---------------------------------------------------------------------------
+# Supplier
+# ---------------------------------------------------------------------------
+class Supplier(CoreBaseModel):
+    class Kind(models.TextChoices):
+        GOODS = "GOODS", "Goods"
+        SERVICES = "SERVICES", "Services"
+        BOTH = "BOTH", "Both"
+
+    name = models.CharField(max_length=200)
+    contact_person = models.CharField(max_length=120, blank=True)
+    phone = models.CharField(max_length=16, blank=True)
+    email = models.EmailField(blank=True)
+    kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.GOODS)
+    tax_id = models.CharField(max_length=64, blank=True)
+    bank_name = models.CharField(max_length=120, blank=True)
+    bank_account_number = models.CharField(max_length=64, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name

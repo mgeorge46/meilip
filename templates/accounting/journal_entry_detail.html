@@ -1,0 +1,43 @@
+{% extends "accounting/_base.html" %}
+{% block title %}{{ entry.reference|default:'Journal Entry' }}{% endblock %}
+{% block content %}
+<h1>Journal Entry {{ entry.reference|default:entry.pk }}</h1>
+<p>
+  <span class="badge {{ entry.status|lower }}">{{ entry.get_status_display }}</span>
+  · Date: {{ entry.entry_date|date:"Y-m-d" }}
+  · Source: {{ entry.get_source_display }}
+  {% if entry.posted_at %}· Posted {{ entry.posted_at|date:"Y-m-d H:i" }} by {{ entry.posted_by }}{% endif %}
+</p>
+{% if entry.memo %}<p><em>{{ entry.memo }}</em></p>{% endif %}
+
+<table>
+  <thead><tr><th>Account</th><th>Description</th><th class="right">Debit</th><th class="right">Credit</th></tr></thead>
+  <tbody>
+    {% for line in lines %}
+    <tr>
+      <td><a href="{% url 'accounting:account-detail' line.account.pk %}">{{ line.account.code }} {{ line.account.name }}</a></td>
+      <td>{{ line.description }}</td>
+      <td class="right">{% if line.debit %}{{ line.debit }}{% endif %}</td>
+      <td class="right">{% if line.credit %}{{ line.credit }}{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr><th colspan="2" class="right">Totals:</th>
+      <th class="right">{{ debit_total }}</th>
+      <th class="right">{{ credit_total }}</th>
+    </tr>
+  </tfoot>
+</table>
+
+<p>
+  Balanced: {{ is_balanced|yesno:"Yes,No" }}
+</p>
+
+{% if entry.status == 'DRAFT' %}
+  <form method="post" action="{% url 'accounting:journal-post' entry.pk %}" class="inline">
+    {% csrf_token %}
+    <button class="primary" type="submit">Post entry</button>
+  </form>
+{% endif %}
+{% endblock %}

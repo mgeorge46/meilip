@@ -1,0 +1,43 @@
+{% extends "accounting/_base.html" %}
+{% block title %}Chart of Accounts{% endblock %}
+{% block content %}
+<h1>Chart of Accounts</h1>
+<form method="get">
+  <input type="search" name="q" value="{{ request.GET.q|default:'' }}" placeholder="Search code or name">
+  <select name="category">
+    <option value="">All categories</option>
+    {% for cat in 'ASSET,LIABILITY,EQUITY,REVENUE,EXPENSE'|slice:':' %}{% endfor %}
+    <option value="ASSET"     {% if request.GET.category == 'ASSET' %}selected{% endif %}>Asset</option>
+    <option value="LIABILITY" {% if request.GET.category == 'LIABILITY' %}selected{% endif %}>Liability</option>
+    <option value="EQUITY"    {% if request.GET.category == 'EQUITY' %}selected{% endif %}>Equity</option>
+    <option value="REVENUE"   {% if request.GET.category == 'REVENUE' %}selected{% endif %}>Revenue</option>
+    <option value="EXPENSE"   {% if request.GET.category == 'EXPENSE' %}selected{% endif %}>Expense</option>
+  </select>
+  <button type="submit">Filter</button>
+</form>
+
+<table>
+  <thead>
+    <tr>
+      <th>Code</th><th>Name</th><th>Category</th><th>Normal</th>
+      <th>System Code</th><th>Postable</th><th>Balance (UGX)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for acct in accounts %}
+    <tr>
+      <td><a href="{% url 'accounting:account-detail' acct.pk %}">{{ acct.code }}</a></td>
+      <td>{% if acct.parent %}<span class="muted">└─ </span>{% endif %}{{ acct.name }}</td>
+      <td>{{ acct.account_type.get_category_display }}</td>
+      <td>{{ acct.account_type.get_normal_balance_display }}</td>
+      <td><code>{{ acct.system_code|default:'—' }}</code></td>
+      <td>{{ acct.is_postable|yesno:'Yes,No' }}</td>
+      <td class="right">{{ acct.balance }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7">No accounts match.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% include "core/pagination.html" %}
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "accounting/_base.html" %}
+{% block title %}{{ account.code }} — {{ account.name }}{% endblock %}
+{% block content %}
+<h1>{{ account.code }} — {{ account.name }}</h1>
+<p class="muted">
+  {{ account.account_type.get_category_display }}
+  · Normal: {{ account.account_type.get_normal_balance_display }}
+  · System code: <code>{{ account.system_code|default:'—' }}</code>
+  {% if account.parent %}· Parent: <a href="{% url 'accounting:account-detail' account.parent.pk %}">{{ account.parent.code }}</a>{% endif %}
+</p>
+
+<h2>Balance: <span class="right">{{ balance }} UGX</span></h2>
+
+{% if children %}
+<h2>Sub-accounts</h2>
+<ul>{% for c in children %}<li><a href="{% url 'accounting:account-detail' c.pk %}">{{ c.code }} — {{ c.name }}</a></li>{% endfor %}</ul>
+{% endif %}
+
+<h2>Ledger entries (posted only)</h2>
+<table>
+  <thead><tr><th>Date</th><th>Reference</th><th>Source</th><th>Description</th><th class="right">Debit</th><th class="right">Credit</th></tr></thead>
+  <tbody>
+  {% for line in lines %}
+    <tr>
+      <td>{{ line.entry.entry_date|date:"Y-m-d" }}</td>
+      <td><a href="{% url 'accounting:journal-detail' line.entry.pk %}">{{ line.entry.reference }}</a></td>
+      <td>{{ line.entry.get_source_display }}</td>
+      <td>{{ line.description }}{% if not line.description %}<span class="muted">{{ line.entry.memo }}</span>{% endif %}</td>
+      <td class="right">{% if line.debit %}{{ line.debit }}{% endif %}</td>
+      <td class="right">{% if line.credit %}{{ line.credit }}{% endif %}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6">No posted entries on this account.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

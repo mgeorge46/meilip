@@ -1,0 +1,10 @@
+# Meili Property — Dev-only dependencies
+-r requirements.txt
+
+pytest
+pytest-django
+pytest-cov
+factory-boy
+faker
+ruff
+django-debug-toolbar

@@ -1,0 +1,22 @@
+{% load widget_tweaks %}
+{% if is_paginated %}
+<nav class="pagination" aria-label="Pagination">
+  <ul class="pagination-list">
+    {% if page_obj.has_previous %}
+      <li><a href="?page={{ page_obj.previous_page_number }}&page_size={{ current_page_size }}">&laquo; Prev</a></li>
+    {% endif %}
+    <li class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</li>
+    {% if page_obj.has_next %}
+      <li><a href="?page={{ page_obj.next_page_number }}&page_size={{ current_page_size }}">Next &raquo;</a></li>
+    {% endif %}
+  </ul>
+  <form method="get" class="page-size-form">
+    <label for="page_size">Per page:</label>
+    <select id="page_size" name="page_size" onchange="this.form.submit()">
+      {% for size in page_size_options %}
+        <option value="{{ size }}" {% if size == current_page_size %}selected{% endif %}>{{ size }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</nav>
+{% endif %}

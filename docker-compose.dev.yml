@@ -1,0 +1,21 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: meili_rabbitmq_dev
+    ports:
+      - "5672:5672"      # AMQP broker port
+      - "15672:15672"    # Management UI (http://localhost:15672)
+    environment:
+      RABBITMQ_DEFAULT_USER: meili
+      RABBITMQ_DEFAULT_PASS: heaven2870_rmq
+      RABBITMQ_DEFAULT_VHOST: meili
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  rabbitmq_data:

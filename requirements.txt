@@ -1,0 +1,39 @@
+# Meili Property — Runtime dependencies
+# Python 3.12+ required
+
+# Core
+Django==6.0.4
+psycopg[binary]>=3.2
+django-environ
+whitenoise
+gunicorn
+waitress
+
+# Auth & security
+argon2-cffi
+django-axes
+django-ratelimit
+
+# Background tasks
+celery==5.6.3
+django-celery-results
+django-celery-beat
+flower
+
+# HTTP
+httpx
+
+# Forms / UI
+django-widget-tweaks
+
+# Audit
+django-simple-history
+
+# Files
+Pillow
+reportlab
+weasyprint
+openpyxl
+
+# Security
+bleach

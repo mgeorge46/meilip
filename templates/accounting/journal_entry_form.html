@@ -1,0 +1,31 @@
+{% extends "accounting/_base.html" %}
+{% block title %}New Journal Entry{% endblock %}
+{% block content %}
+<h1>New Journal Entry</h1>
+<form method="post">
+  {% csrf_token %}
+  <div>{{ form.as_p }}</div>
+
+  <h2>Lines</h2>
+  {{ formset.management_form }}
+  <table>
+    <thead><tr><th>Account</th><th>Debit</th><th>Credit</th><th>Description</th><th>Delete</th></tr></thead>
+    <tbody>
+    {% for f in formset.forms %}
+      <tr>
+        <td>{{ f.account }}{{ f.id }}{% if f.non_field_errors %}<div>{{ f.non_field_errors }}</div>{% endif %}</td>
+        <td>{{ f.debit }}</td>
+        <td>{{ f.credit }}</td>
+        <td>{{ f.description }}</td>
+        <td>{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if formset.non_form_errors %}<div class="messages">{{ formset.non_form_errors }}</div>{% endif %}
+
+  <p class="muted">Debits must equal credits before posting. Save as draft to edit later.</p>
+  <button type="submit" name="save" value="1">Save draft</button>
+  <button type="submit" name="post" value="1" class="primary">Save &amp; post</button>
+</form>
+{% endblock %}

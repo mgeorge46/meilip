@@ -1,0 +1,41 @@
+{% extends "accounting/_base.html" %}
+{% block title %}Commission Income Report{% endblock %}
+{% block content %}
+<h1>Commission Income Report</h1>
+<p class="muted">Drill-down on <strong>{{ account.code }} — {{ account.name }}</strong>. Isolated from Rent Income per SPEC §14.2.</p>
+
+<form method="get">
+  <label>From: <input type="date" name="from" value="{{ date_from }}"></label>
+  <label>To: <input type="date" name="to" value="{{ date_to }}"></label>
+  <button type="submit">Update</button>
+</form>
+
+<table>
+  <thead><tr><th>Date</th><th>Reference</th><th>Source</th><th>Description</th><th class="right">Debit</th><th class="right">Credit</th></tr></thead>
+  <tbody>
+    {% for line in lines %}
+    <tr>
+      <td>{{ line.entry.entry_date|date:"Y-m-d" }}</td>
+      <td><a href="{% url 'accounting:journal-detail' line.entry.pk %}">{{ line.entry.reference }}</a></td>
+      <td>{{ line.entry.get_source_display }}</td>
+      <td>{{ line.description|default:line.entry.memo }}</td>
+      <td class="right">{% if line.debit %}{{ line.debit }}{% endif %}</td>
+      <td class="right">{% if line.credit %}{{ line.credit }}{% endif %}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6">No commission activity in the selected period.</td></tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <th colspan="4" class="right">Totals</th>
+      <th class="right">{{ debits }}</th>
+      <th class="right">{{ credits }}</th>
+    </tr>
+    <tr>
+      <th colspan="4" class="right">Recognised commission income (UGX)</th>
+      <th colspan="2" class="right">{{ recognised }}</th>
+    </tr>
+  </tfoot>
+</table>
+{% endblock %}
