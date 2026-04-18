@@ -1,0 +1,4 @@
+{% extends "core/_form.html" %}
+{% block form_title %}{% if object %}Edit bank account{% else %}New bank account{% endif %}{% endblock %}
+{% block form_heading %}{% if object %}Edit: {{ object.name }}{% else %}New bank account{% endif %}{% endblock %}
+{% block form_cancel %}<a class="btn ghost" href="{% url 'accounting:bankaccount-list' %}">Cancel</a>{% endblock %}

@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ house }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>{{ house.name|default:house.house_number }}</h1>
+    <p class="muted">Estate: <a href="{% url 'core:estate-detail' house.estate_id %}">{{ house.estate.name }}</a> · Landlord: {{ house.effective_landlord.full_name }}</p>
+  </div>
+  <div>
+    <a class="btn ghost" href="{% url 'core:house-list' %}">Back</a>
+    <a class="btn primary" href="{% url 'core:house-update' house.pk %}">Edit</a>
+  </div>
+</section>
+
+<div class="cards-grid">
+  <div class="card">
+    <div class="card-label">Occupancy</div>
+    <div class="card-value"><span class="badge {{ house.occupancy_status|lower }}">{{ house.get_occupancy_status_display }}</span></div>
+  </div>
+  <div class="card">
+    <div class="card-label">Periodic rent</div>
+    <div class="card-value">{{ house.periodic_rent|default:"—" }} UGX</div>
+  </div>
+  <div class="card">
+    <div class="card-label">House number</div>
+    <div class="card-value">{{ house.house_number }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Effective settings</h2>
+  <p class="muted small">House-level values override estate-level; empty values inherit from the estate.</p>
+  <table class="data">
+    <thead><tr><th>Setting</th><th>Value</th><th>Source</th></tr></thead>
+    <tbody>
+      {% for row in effective_settings %}
+        <tr>
+          <td>{{ row.field }}</td>
+          <td>{{ row.value|default:"—" }}</td>
+          <td><span class="badge source-{{ row.source }}">{{ row.source|title }}</span></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2>Tenancies</h2>
+  <table class="data">
+    <thead><tr><th>Tenant</th><th>Status</th><th>Move-in</th><th>Move-out</th></tr></thead>
+    <tbody>
+      {% for th in tenancies %}
+        <tr>
+          <td><a href="{% url 'core:tenant-detail' th.tenant_id %}">{{ th.tenant.full_name }}</a></td>
+          <td><span class="badge {{ th.status|lower }}">{{ th.get_status_display }}</span></td>
+          <td>{{ th.move_in_date|default:"—" }}</td>
+          <td>{{ th.move_out_date|default:"—" }}</td>
+        </tr>
+      {% empty %}<tr><td colspan="4" class="muted">No tenancies for this house.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<form method="post" action="{% url 'core:house-delete' house.pk %}" class="danger-zone"
+      onsubmit="return confirm('Delete this house?');">
+  {% csrf_token %}
+  <button type="submit" class="btn danger">Delete house</button>
+</form>
+{% endblock %}

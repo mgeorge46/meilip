@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ supplier.name }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>{{ supplier.name }}</h1>
+    <p class="muted">{{ supplier.get_kind_display }}</p>
+  </div>
+  <div>
+    <a class="btn ghost" href="{% url 'core:supplier-list' %}">Back</a>
+    <a class="btn primary" href="{% url 'core:supplier-update' supplier.pk %}">Edit</a>
+  </div>
+</section>
+
+<div class="card">
+  <dl class="kv">
+    <dt>Contact person</dt><dd>{{ supplier.contact_person|default:"—" }}</dd>
+    <dt>Phone</dt><dd>{{ supplier.phone|default:"—" }}</dd>
+    <dt>Email</dt><dd>{{ supplier.email|default:"—" }}</dd>
+    <dt>Tax ID</dt><dd>{{ supplier.tax_id|default:"—" }}</dd>
+    <dt>Bank</dt><dd>{{ supplier.bank_name|default:"—" }} · {{ supplier.bank_account_number|default:"—" }}</dd>
+    <dt>Active</dt><dd>{% if supplier.is_active %}Yes{% else %}No{% endif %}</dd>
+  </dl>
+</div>
+
+<form method="post" action="{% url 'core:supplier-delete' supplier.pk %}" class="danger-zone"
+      onsubmit="return confirm('Delete this supplier?');">
+  {% csrf_token %}
+  <button type="submit" class="btn danger">Delete supplier</button>
+</form>
+{% endblock %}

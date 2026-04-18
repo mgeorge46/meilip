@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ estate.name }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>{{ estate.name }}</h1>
+    <p class="muted">{{ estate.location|default:"—" }} · Landlord: {{ estate.landlord.full_name }}</p>
+  </div>
+  <div>
+    <a class="btn ghost" href="{% url 'core:estate-list' %}">Back</a>
+    <a class="btn primary" href="{% url 'core:estate-update' estate.pk %}">Edit</a>
+  </div>
+</section>
+
+<div class="card">
+  <h2>Houses</h2>
+  <table class="data">
+    <thead><tr><th>#</th><th>Name</th><th>Rent</th><th>Occupancy</th></tr></thead>
+    <tbody>
+      {% for h in houses %}
+        <tr>
+          <td><a href="{% url 'core:house-detail' h.pk %}">{{ h.house_number }}</a></td>
+          <td>{{ h.name|default:"—" }}</td>
+          <td>{{ h.periodic_rent|default:"—" }}</td>
+          <td><span class="badge {{ h.occupancy_status|lower }}">{{ h.get_occupancy_status_display }}</span></td>
+        </tr>
+      {% empty %}<tr><td colspan="4" class="muted">No houses in this estate.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  <p><a class="btn ghost" href="{% url 'core:house-create' %}">+ Add a house</a></p>
+</div>
+
+<form method="post" action="{% url 'core:estate-delete' estate.pk %}" class="danger-zone"
+      onsubmit="return confirm('Delete this estate?');">
+  {% csrf_token %}
+  <button type="submit" class="btn danger">Delete estate</button>
+</form>
+{% endblock %}

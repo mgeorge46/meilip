@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ bankaccount.name }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>{{ bankaccount.name }}</h1>
+    <p class="muted">{{ bankaccount.get_kind_display }} · {{ bankaccount.currency.code }}</p>
+  </div>
+  <div>
+    <a class="btn ghost" href="{% url 'accounting:bankaccount-list' %}">Back</a>
+    <a class="btn primary" href="{% url 'accounting:bankaccount-update' bankaccount.pk %}">Edit</a>
+  </div>
+</section>
+
+<div class="card">
+  <dl class="kv">
+    <dt>Bank</dt><dd>{{ bankaccount.bank_name|default:"—" }}</dd>
+    <dt>Account number</dt><dd>{{ bankaccount.account_number|default:"—" }}</dd>
+    <dt>Branch</dt><dd>{{ bankaccount.branch|default:"—" }}</dd>
+    <dt>Mobile provider</dt><dd>{{ bankaccount.mobile_provider|default:"—" }}</dd>
+    <dt>Mobile number</dt><dd>{{ bankaccount.mobile_number|default:"—" }}</dd>
+    <dt>Ledger account</dt>
+    <dd><a href="{% url 'accounting:account-detail' bankaccount.ledger_account_id %}">{{ bankaccount.ledger_account.code }} — {{ bankaccount.ledger_account.name }}</a></dd>
+    <dt>Active</dt><dd>{% if bankaccount.is_active %}Yes{% else %}No{% endif %}</dd>
+  </dl>
+</div>
+
+<form method="post" action="{% url 'accounting:bankaccount-delete' bankaccount.pk %}" class="danger-zone"
+      onsubmit="return confirm('Delete this bank account?');">
+  {% csrf_token %}
+  <button type="submit" class="btn danger">Delete</button>
+</form>
+{% endblock %}

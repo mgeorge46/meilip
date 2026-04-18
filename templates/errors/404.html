@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}404 Not Found · Meili Property{% endblock %}
+{% block content %}
+<section class="error-shell">
+  <div class="error-card">
+    <div class="error-code">404</div>
+    <h1>Page not found</h1>
+    <p class="muted">The page you&rsquo;re looking for doesn&rsquo;t exist or may have been moved.</p>
+    <p><a class="btn primary" href="{% url 'dashboard:home' %}">Back to Dashboard</a></p>
+  </div>
+</section>
+{% endblock %}

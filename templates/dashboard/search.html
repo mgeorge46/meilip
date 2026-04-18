@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Search · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>Search results{% if q %} for &ldquo;{{ q }}&rdquo;{% endif %}</h1>
+</section>
+
+{% if not q %}
+  <p class="muted">Enter a query in the search bar to find tenants, houses, estates or users.</p>
+{% else %}
+
+<section class="search-group">
+  <h2>Tenants <span class="count">{{ results.tenants|length }}</span></h2>
+  {% if results.tenants %}
+    <table class="data">
+      <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for t in results.tenants %}
+        <tr>
+          <td><a href="{% url 'core:tenant-detail' t.pk %}">{{ t.full_name }}</a></td>
+          <td>{{ t.email|default:"—" }}</td>
+          <td>{{ t.phone }}</td>
+          <td><span class="badge {{ t.derived_status|lower }}">{{ t.derived_status }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}<p class="muted">No tenants matched.</p>{% endif %}
+</section>
+
+<section class="search-group">
+  <h2>Houses <span class="count">{{ results.houses|length }}</span></h2>
+  {% if results.houses %}
+    <table class="data">
+      <thead><tr><th>Number</th><th>Name</th><th>Estate</th><th>Occupancy</th></tr></thead>
+      <tbody>
+      {% for h in results.houses %}
+        <tr>
+          <td><a href="{% url 'core:house-detail' h.pk %}">{{ h.house_number }}</a></td>
+          <td>{{ h.name|default:"—" }}</td>
+          <td>{{ h.estate.name }}</td>
+          <td><span class="badge {{ h.occupancy_status|lower }}">{{ h.get_occupancy_status_display }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}<p class="muted">No houses matched.</p>{% endif %}
+</section>
+
+<section class="search-group">
+  <h2>Estates <span class="count">{{ results.estates|length }}</span></h2>
+  {% if results.estates %}
+    <table class="data">
+      <thead><tr><th>Name</th><th>Location</th><th>Landlord</th></tr></thead>
+      <tbody>
+      {% for e in results.estates %}
+        <tr>
+          <td><a href="{% url 'core:estate-detail' e.pk %}">{{ e.name }}</a></td>
+          <td>{{ e.location|default:"—" }}</td>
+          <td>{{ e.landlord.full_name }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}<p class="muted">No estates matched.</p>{% endif %}
+</section>
+
+<section class="search-group">
+  <h2>Users <span class="count">{{ results.users|length }}</span></h2>
+  {% if results.users %}
+    <table class="data">
+      <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Active</th></tr></thead>
+      <tbody>
+      {% for u in results.users %}
+        <tr>
+          <td>{{ u.get_full_name|default:"—" }}</td>
+          <td>{{ u.email }}</td>
+          <td>{{ u.phone }}</td>
+          <td>{% if u.is_active %}<span class="badge active">Yes</span>{% else %}<span class="badge exited">No</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}<p class="muted">No users matched.</p>{% endif %}
+</section>
+
+{% endif %}
+{% endblock %}

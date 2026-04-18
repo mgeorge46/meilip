@@ -1,0 +1,72 @@
+{% load static %}
+<aside class="app-sidebar" aria-label="Primary navigation">
+  <div class="sidebar-brand">
+    <img src="{% static 'img/meil.jpg' %}" alt="Meili">
+    <span class="brand-name">Meili</span>
+    <button id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle sidebar">☰</button>
+  </div>
+
+  <ul class="sidebar-menu">
+    <li><a href="{% url 'dashboard:home' %}" data-label="Dashboard"><span class="menu-icon">◉</span><span class="menu-label">Dashboard</span></a></li>
+
+    <li class="sidebar-section-title">Property Management</li>
+    <li data-section="property">
+      <button class="menu-toggle" data-label="Property"><span class="menu-icon">▤</span><span class="menu-label">Property</span><span class="menu-chevron">›</span></button>
+      <ul class="submenu">
+        <li><a href="{% url 'core:estate-list' %}">Estates</a></li>
+        <li><a href="{% url 'core:house-list' %}">Houses</a></li>
+      </ul>
+    </li>
+
+    <li class="sidebar-section-title">People</li>
+    <li data-section="people">
+      <button class="menu-toggle" data-label="People"><span class="menu-icon">☺</span><span class="menu-label">People</span><span class="menu-chevron">›</span></button>
+      <ul class="submenu">
+        <li><a href="{% url 'core:tenant-list' %}">Tenants</a></li>
+        <li><a href="{% url 'core:landlord-list' %}">Landlords</a></li>
+        <li><a href="{% url 'core:employee-list' %}">Employees</a></li>
+        <li><a href="{% url 'core:supplier-list' %}">Suppliers</a></li>
+      </ul>
+    </li>
+
+    <li class="sidebar-section-title">Billing</li>
+    <li data-section="billing">
+      <button class="menu-toggle" data-label="Billing"><span class="menu-icon">$</span><span class="menu-label">Billing</span><span class="menu-chevron">›</span></button>
+      <ul class="submenu">
+        <li><a href="{% url 'dashboard:coming-soon' 'invoices' %}">Invoices</a></li>
+        <li><a href="{% url 'dashboard:coming-soon' 'payments' %}">Payments</a></li>
+        <li><a href="{% url 'dashboard:coming-soon' 'receipts' %}">Receipts</a></li>
+        <li><a href="{% url 'dashboard:coming-soon' 'invoice-schedules' %}">Invoice Schedules</a></li>
+      </ul>
+    </li>
+
+    <li class="sidebar-section-title">Accounting</li>
+    <li data-section="accounting">
+      <button class="menu-toggle" data-label="Accounting"><span class="menu-icon">⌘</span><span class="menu-label">Accounting</span><span class="menu-chevron">›</span></button>
+      <ul class="submenu">
+        <li><a href="{% url 'accounting:account-list' %}">Chart of Accounts</a></li>
+        <li><a href="{% url 'accounting:journal-create' %}">New Journal Entry</a></li>
+        <li><a href="{% url 'accounting:general-ledger' %}">General Ledger</a></li>
+        <li><a href="{% url 'dashboard:coming-soon' 'trial-balance' %}">Trial Balance</a></li>
+        <li><a href="{% url 'accounting:bankaccount-list' %}">Bank Accounts</a></li>
+      </ul>
+    </li>
+
+    <li class="sidebar-section-title">Reports</li>
+    <li data-section="reports">
+      <button class="menu-toggle" data-label="Reports"><span class="menu-icon">◧</span><span class="menu-label">Reports</span><span class="menu-chevron">›</span></button>
+      <ul class="submenu">
+        <li><a href="{% url 'accounting:commission-report' %}">Commission Income</a></li>
+        <li><a href="{% url 'dashboard:coming-soon' 'landlord-statements' %}">Landlord Statements</a></li>
+        <li><a href="{% url 'dashboard:coming-soon' 'collection-performance' %}">Collection Performance</a></li>
+        <li><a href="{% url 'dashboard:coming-soon' 'occupancy-rates' %}">Occupancy Rates</a></li>
+        <li><a href="{% url 'dashboard:coming-soon' 'tenant-acquisition' %}">Tenant Acquisition</a></li>
+      </ul>
+    </li>
+
+    {% if request.user.is_superuser or 'ADMIN' in user_role_names %}
+    <li class="sidebar-section-title">Admin</li>
+    <li><a href="{% url 'dashboard:coming-soon' 'admin-settings' %}" data-label="Admin Settings"><span class="menu-icon">⚙</span><span class="menu-label">Admin Settings</span></a></li>
+    {% endif %}
+  </ul>
+</aside>

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Employees · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div><h1>Employees</h1></div>
+  <div><a class="btn primary" href="{% url 'core:employee-create' %}">+ New Employee</a></div>
+</section>
+
+<div class="card">
+  <table class="data">
+    <thead><tr><th>Name</th><th>Phone</th><th>Manager</th><th>Trusted</th><th>Active</th><th></th></tr></thead>
+    <tbody>
+      {% for e in employees %}
+      <tr>
+        <td><a href="{% url 'core:employee-detail' e.pk %}">{{ e.full_name }}</a></td>
+        <td>{{ e.phone|default:"—" }}</td>
+        <td>{{ e.manager.full_name|default:"—" }}</td>
+        <td>{% if not e.requires_checker %}<span class="badge active">Trusted</span>{% else %}—{% endif %}</td>
+        <td>{% if e.is_active %}<span class="badge active">Yes</span>{% else %}<span class="badge exited">No</span>{% endif %}</td>
+        <td class="actions"><a href="{% url 'core:employee-update' e.pk %}">Edit</a></td>
+      </tr>
+      {% empty %}<tr><td colspan="6" class="muted">No employees yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include "core/pagination.html" %}
+{% endblock %}

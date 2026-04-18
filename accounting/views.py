@@ -10,13 +10,13 @@ from django.db import transaction
 from django.db.models import Sum, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.views.generic import DetailView
+from django.views.generic import CreateView, DetailView, UpdateView, View
 
 from accounts.permissions import RoleRequiredMixin, role_required
 from core.mixins import PaginatedListView
 
-from .forms import JournalEntryForm, JournalEntryLineFormSet
-from .models import Account, JournalEntry, JournalEntryLine
+from .forms import BankAccountForm, JournalEntryForm, JournalEntryLineFormSet
+from .models import Account, BankAccount, JournalEntry, JournalEntryLine
 from .utils import SYS_COMMISSION_INCOME, get_account
 
 
@@ -206,3 +206,62 @@ def commission_income_report(request):
             "recognised": recognised,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# BankAccount CRUD
+# ---------------------------------------------------------------------------
+from django.contrib import messages as _msgs
+from django.shortcuts import redirect as _redirect
+
+
+class BankAccountListView(RoleRequiredMixin, PaginatedListView):
+    required_roles = FINANCE_ROLES
+    model = BankAccount
+    template_name = "accounting/bankaccount_list.html"
+    context_object_name = "bankaccounts"
+
+    def get_queryset(self):
+        return super().get_queryset().select_related("currency", "ledger_account")
+
+
+class BankAccountDetailView(RoleRequiredMixin, DetailView):
+    required_roles = FINANCE_ROLES
+    model = BankAccount
+    template_name = "accounting/bankaccount_detail.html"
+    context_object_name = "bankaccount"
+
+
+class BankAccountCreateView(RoleRequiredMixin, CreateView):
+    required_roles = ("ADMIN", "SUPER_ADMIN", "FINANCE")
+    model = BankAccount
+    form_class = BankAccountForm
+    template_name = "accounting/bankaccount_form.html"
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        form.instance.updated_by = self.request.user
+        _msgs.success(self.request, "Bank account created.")
+        return super().form_valid(form)
+
+
+class BankAccountUpdateView(RoleRequiredMixin, UpdateView):
+    required_roles = ("ADMIN", "SUPER_ADMIN", "FINANCE")
+    model = BankAccount
+    form_class = BankAccountForm
+    template_name = "accounting/bankaccount_form.html"
+
+    def form_valid(self, form):
+        form.instance.updated_by = self.request.user
+        _msgs.success(self.request, "Bank account updated.")
+        return super().form_valid(form)
+
+
+class BankAccountDeleteView(RoleRequiredMixin, View):
+    required_roles = ("ADMIN", "SUPER_ADMIN")
+
+    def post(self, request, pk):
+        obj = get_object_or_404(BankAccount, pk=pk)
+        obj.soft_delete(user=request.user)
+        _msgs.success(request, "Bank account deleted.")
+        return _redirect("accounting:bankaccount-list")

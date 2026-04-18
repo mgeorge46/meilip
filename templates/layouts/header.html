@@ -1,0 +1,47 @@
+{% load static %}
+<header class="app-header" role="banner">
+  <form method="get" action="{% url 'dashboard:search' %}" class="global-search select2-auto" role="search">
+    <input type="search" name="q" value="{{ request.GET.q|default:'' }}"
+           placeholder="Search tenants, houses, estates, users..."
+           aria-label="Global search" autocomplete="off">
+  </form>
+
+  <div class="header-actions">
+    <div class="dropdown" data-dropdown>
+      <button class="icon-btn" data-dropdown-trigger aria-label="Notifications">
+        <span aria-hidden="true">🔔</span>
+        {% if unread_notifications_count %}<span class="badge-dot">{{ unread_notifications_count }}</span>{% endif %}
+      </button>
+      <div class="dropdown-menu notif-list" role="menu">
+        {% if notifications %}
+          {% for n in notifications %}
+            <a href="{{ n.url|default:'#' }}">{{ n.message }}<div class="muted">{{ n.created_at|default:'' }}</div></a>
+          {% endfor %}
+        {% else %}
+          <div class="empty">No new notifications.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="dropdown" data-dropdown>
+      <button class="profile-trigger" data-dropdown-trigger aria-haspopup="menu">
+        <span class="avatar">
+          {% if request.user.profile_picture %}
+            <img src="{{ request.user.profile_picture.url }}" alt="">
+          {% else %}
+            {{ request.user.initials|default:'?' }}
+          {% endif %}
+        </span>
+        <span aria-hidden="true">▾</span>
+      </button>
+      <div class="dropdown-menu" role="menu">
+        <a href="{% url 'accounts:profile' %}">My Profile</a>
+        {% if request.user.is_superuser or 'ADMIN' in user_role_names %}
+          <a href="{% url 'dashboard:coming-soon' 'admin-settings' %}">Admin Settings</a>
+        {% endif %}
+        <hr>
+        <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button type="submit">Log out</button></form>
+      </div>
+    </div>
+  </div>
+</header>

@@ -45,6 +45,10 @@ class RoleRequiredMixin(LoginRequiredMixin):
     required_roles = ()
 
     def dispatch(self, request, *args, **kwargs):
+        # Let LoginRequiredMixin handle unauthenticated requests (redirect to
+        # login) before we evaluate role membership.
+        if not request.user.is_authenticated:
+            return super().dispatch(request, *args, **kwargs)
         if not has_any_role(request.user, *self.required_roles):
             raise PermissionDenied("Required role not assigned")
         return super().dispatch(request, *args, **kwargs)

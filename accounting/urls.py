@@ -12,4 +12,11 @@ urlpatterns = [
     path("journals/<int:pk>/", views.journal_entry_detail, name="journal-detail"),
     path("journals/<int:pk>/post/", views.journal_entry_post, name="journal-post"),
     path("reports/commission/", views.commission_income_report, name="commission-report"),
+
+    # Bank accounts
+    path("bank-accounts/", views.BankAccountListView.as_view(), name="bankaccount-list"),
+    path("bank-accounts/new/", views.BankAccountCreateView.as_view(), name="bankaccount-create"),
+    path("bank-accounts/<int:pk>/", views.BankAccountDetailView.as_view(), name="bankaccount-detail"),
+    path("bank-accounts/<int:pk>/edit/", views.BankAccountUpdateView.as_view(), name="bankaccount-update"),
+    path("bank-accounts/<int:pk>/delete/", views.BankAccountDeleteView.as_view(), name="bankaccount-delete"),
 ]

@@ -1,17 +1,18 @@
 # Project State
 
 ## Current Phase
-Phase 3 — Portals & UI (not started)
+Phase 3 — Employee Dashboard: UI Layout, Design System, Entity CRUD (complete)
 
 ## Last Completed
-Phase 2 — Chart of Accounts & Accounting (2026-04-18)
+Phase 3 — Employee Dashboard (2026-04-17)
 
 ## Next Up
-Phase 3 — Portals & UI (tenant / landlord / employee portals, base.html, login flow)
+Phase 4 — Billing (invoices, schedules, payment allocation, maker-checker)
 
 ## Completed Phases
 - [x] Phase 1 — Project Setup, Custom Auth & Core Models
 - [x] Phase 2 — Chart of Accounts & Accounting
+- [x] Phase 3 — Employee Dashboard: UI Layout, Design System, Entity CRUD
 
 ## Phase 1 Deliverables
 - `requirements.txt` (runtime), `requirements-dev.txt` (dev-only), `requirements.lock.txt` (frozen)
@@ -77,8 +78,31 @@ Phase 3 — Portals & UI (tenant / landlord / employee portals, base.html, login
 - 2026-04-18 — `JournalEntry.reverse()` keeps both original (marked REVERSED) and reversal (POSTED) counted by `Account.balance()`. Reversal is two POSTED states accounting-wise; REVERSED is a display/audit flag only. This avoids "balance goes negative after reversal" artefact.
 - 2026-04-18 — Finance views authorised via `role_required('ADMIN','SUPER_ADMIN','FINANCE','ACCOUNT_MANAGER')` per SPEC §16.9. Collections/Sales Rep excluded from journal creation. Read-only views for them deferred to Phase 3.
 - 2026-04-18 — Templates are functional-plain for Phase 2 (inline `<style>` in `_base.html`). Proper theming with CSS variables per SPEC §17.4 deferred to Phase 3.
+- 2026-04-17 — `RoleRequiredMixin.dispatch` now defers to `LoginRequiredMixin` before checking role membership, so unauthenticated hits redirect to login rather than returning 403. Role check runs only once the user is authenticated.
+- 2026-04-17 — Static storage downgraded to non-manifest (`StaticFilesStorage`) whenever `DEBUG=True` or under `manage.py test` to avoid "missing manifest" failures without requiring a `collectstatic` before every test run. Production still uses `CompressedManifestStaticFilesStorage`.
+- 2026-04-17 — `get_effective_setting_with_source(house, field)` added next to `get_effective_setting` so the House detail page can show whether each effective setting is inherited from the estate or overridden at house level. Original single-return helper left intact for tests.
+- 2026-04-17 — Tenant/landlord self-edit guard enforced both on `accounts:profile` (view-level guard with message + redirect) and on `core:tenant-update` (403 when the tenant's linked user is the request user and holds no staff role). UI-hiding is not sufficient per CLAUDE.md.
+- 2026-04-17 — `TenantHouse` lifecycle transitions (`tenancy-activate` / `tenancy-exit`) only allowed from the permitted prior state. Activating a Prospect stamps today's `move_in_date` if blank and marks the house OCCUPIED. Exiting an Active tenancy stamps today's `move_out_date` if blank and re-vacates the house only when no other Active tenancy remains.
 
-## Tech Debt / Deferred
+## Phase 3 Deliverables
+- `dashboard` app — home page, global search (4-table grouped: tenants/houses/estates/users), coming-soon placeholder, custom 403/404/500 error pages wired via `handler403`/`handler404`/`handler500` in the project `urls.py`
+- Context processors: `accounts.context_processors.user_roles` and `dashboard.context_processors.notifications` registered in `TEMPLATES.OPTIONS.context_processors` so `user_role_names`, `unread_notifications_count`, and `notifications` are available to every template
+- Design system (`static/css/_variables.css`) — full token set per SPEC §17.4 (primary/secondary/semantic/neutral palette, spacing 4px grid, radius, typography, shadows, layout vars). No hardcoded colours anywhere in templates or `base.css`
+- `static/css/base.css` — grid-based `.app-shell` (sidebar | header/main/footer), collapsible sidebar with collapsed-mode tooltips, submenu accordion, header global-search bar, icon buttons with `badge-dot`, profile avatar with initials fallback, dropdown menus, cards, forms, data tables, badges, pagination, messages alerts, auth shell, error shell, coming-soon
+- `static/js/layout.js` — vanilla JS: sidebar collapse persisted in `localStorage` key `meili.sidebar.collapsed`; submenu accordion with open sections persisted as JSON in `meili.sidebar.open`; header dropdowns via `[data-dropdown]` / `[data-dropdown-trigger]` convention; click-outside closes dropdowns
+- `templates/base.html` — Inter font, Select2 CDN, jQuery, and a blanket Select2 initialiser applied to `select.select2` and any `<select>` inside a `.select2-auto` container
+- `templates/layouts/sidebar.html` — multi-level sidebar: Dashboard · Property (Estates/Houses) · People (Tenants/Landlords/Employees/Suppliers) · Billing (Invoices/Payments/Receipts/Invoice Schedules — Coming Soon) · Accounting (COA/Journal/GL/Trial Balance Coming Soon/Bank Accounts) · Reports (Commission Income + 4 Coming Soon) · Admin (superuser-gated)
+- `templates/layouts/header.html` — global search form (posts to `dashboard:search`), notification bell with unread badge, profile avatar with initials fallback and My Profile / Admin Settings / Log Out menu
+- `templates/layouts/footer.html` — Okumpi Technologies credit · v1.1.0 · dynamic year
+- `accounts` auth — `login/logout/password-reset/password-reset-confirm/password-change/profile` views with forms, CSRF, Argon2 hashing, login/failure attempts logged to `LoginAttempt`, Axes-integrated via settings. Auth-shell templates (`_auth_base.html`, `login.html`, `password_reset_request.html`, `password_reset_confirm.html`). In-app templates (`password_change.html`, `profile.html`)
+- `core` CRUD — Landlord, Estate, House, Tenant, TenantHouse, Employee, Supplier: list/detail/create/update/soft-delete via class-based views gated by `RoleRequiredMixin`. House detail page shows full "effective settings" table with per-row `house` / `estate` / `none` source badges via `get_effective_setting_with_source`
+- `core:tenancy-create` / `tenancy-activate` / `tenancy-exit` — tenancy lifecycle actions (Prospect → Active → Exited) with automatic house occupancy updates
+- `accounting` CRUD — BankAccount list/detail/create/update/delete added next to existing COA/Journal/Ledger/Report views
+- Server-side profile edit guards per CLAUDE.md: tenants/landlords cannot edit their own profile (accounts:profile blocks POST with a redirect + message; core:tenant-update 403s when the viewer *is* the linked user and holds no staff role); employee management (`core:employee-*`) restricted to ADMIN / SUPER_ADMIN
+- Pagination: all list views use `PaginatedListView` (default 50, options 20/50/100/150, session-persistent via `?page_size=`)
+- 18 new tests in `dashboard/tests.py` covering permission boundaries (unauth redirect, authenticated-without-role 403, tenant blocked, collections allowed, admin-only employee list), tenancy lifecycle (activate/exit with house occupancy transitions, derived status transitions), profile guards (tenant blocked, employee allowed, self-edit on Tenant record blocked), coming-soon + search rendering. **60 tests total passing** (accounts 9, core 15, accounting 18, dashboard 18)
+
+## Outstanding Phase 1 Verification (user-driven)
 - Views, templates, login/logout/password-reset UI — deferred to Phase 3 (Portals & UI).
 - Employee auto-provisioning of `User` with temp password + email — deferred to Phase 3.
 - Admin settings page (SPEC §2A.6) — deferred to Phase 3.
@@ -93,7 +117,9 @@ Phase 3 — Portals & UI (tenant / landlord / employee portals, base.html, login
 - Journal Entry void/hard-delete workflow for drafts — deferred (rarely needed, trivial admin action).
 
 ## Known Issues
-- None.
+- Notifications bell renders a stub count of 0 — backend model + Celery fan-out deferred to Phase 6.
+- Password-reset emails are logged to the Django `messages` framework (dev token inlined) rather than sent via Celery/email. Email dispatch wiring deferred.
+- Employee creation form still requires a pre-existing `User`; self-provisioning workflow (SPEC §2A.5) deferred.
 
 ## Running Processes (user-managed — NOT the agent)
 - `docker compose -f docker-compose.dev.yml up -d rabbitmq` (broker)

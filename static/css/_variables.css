@@ -1,0 +1,101 @@
+/* Meili Property — Design tokens
+   All themeable colours live here as CSS variables. NO hardcoded colours
+   in other stylesheets. Inter font-family is loaded in base.html.
+*/
+:root {
+  /* Primary palette — professional teal/blue, real-estate-appropriate */
+  --primary-50:  #e6f2f5;
+  --primary-100: #cce5ec;
+  --primary-200: #99cbd9;
+  --primary-300: #66b1c6;
+  --primary-400: #3397b3;
+  --primary-500: #0f6b80;
+  --primary-600: #0d5d70;
+  --primary-700: #0a4a5a;
+  --primary-800: #063845;
+  --primary-900: #042a33;
+  --primary:     var(--primary-600);
+  --primary-contrast: #ffffff;
+
+  /* Secondary accent — warm ochre */
+  --secondary-500: #c48b2f;
+  --secondary:     var(--secondary-500);
+
+  /* Semantic */
+  --success-50:  #e8f7ef;
+  --success-500: #1d9a57;
+  --success-700: #0f6b3b;
+  --success:     var(--success-500);
+
+  --warning-50:  #fef4e2;
+  --warning-500: #d48806;
+  --warning:     var(--warning-500);
+
+  --danger-50:   #fdecec;
+  --danger-500:  #c42a2a;
+  --danger-700:  #8f1d1d;
+  --danger:      var(--danger-500);
+
+  --info-500:    #2176c7;
+  --info:        var(--info-500);
+
+  /* Neutrals */
+  --neutral-0:   #ffffff;
+  --neutral-50:  #f7f8fa;
+  --neutral-100: #eef0f3;
+  --neutral-200: #dfe2e7;
+  --neutral-300: #c6cbd2;
+  --neutral-400: #9ba2ad;
+  --neutral-500: #6b7280;
+  --neutral-600: #4b5260;
+  --neutral-700: #343944;
+  --neutral-800: #21252d;
+  --neutral-900: #13161c;
+
+  /* Surfaces & text */
+  --bg-app:       var(--neutral-50);
+  --bg-surface:   var(--neutral-0);
+  --bg-sidebar:   var(--primary-800);
+  --bg-sidebar-hover: var(--primary-700);
+  --bg-header:    var(--neutral-0);
+  --border:       var(--neutral-200);
+  --text:         var(--neutral-800);
+  --text-muted:   var(--neutral-500);
+  --text-inverse: var(--neutral-0);
+
+  /* Spacing scale (4px grid) */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --space-12: 48px; --space-16: 64px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius:    8px;
+  --radius-lg: 12px;
+
+  /* Typography */
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --text-xs:   0.75rem;
+  --text-sm:   0.875rem;
+  --text-base: 1rem;
+  --text-lg:   1.125rem;
+  --text-xl:   1.25rem;
+  --text-2xl:  1.5rem;
+  --text-3xl:  1.875rem;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(13, 22, 35, 0.05);
+  --shadow:    0 2px 8px rgba(13, 22, 35, 0.08);
+  --shadow-lg: 0 8px 24px rgba(13, 22, 35, 0.12);
+
+  /* Layout */
+  --sidebar-w:        248px;
+  --sidebar-w-collapsed: 64px;
+  --header-h:         60px;
+  --footer-h:         40px;
+  --z-sidebar:        20;
+  --z-header:         30;
+  --z-dropdown:       40;
+  --z-modal:          50;
+}

@@ -1,0 +1,34 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ page_title|default:"Meili Property" }}{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/base.css' %}">
+</head>
+<body class="auth-body">
+  <div class="auth-shell">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <img src="{% static 'img/meil.jpg' %}" alt="Meili">
+        <span class="brand-name">Meili Property</span>
+      </div>
+
+      {% if messages %}
+        <div class="messages">
+          {% for m in messages %}<div class="alert {{ m.tags|default:'info' }}">{{ m }}</div>{% endfor %}
+        </div>
+      {% endif %}
+
+      {% block auth_content %}{% endblock %}
+
+      <footer class="auth-footer muted">
+        <small>Developed by Okumpi Technologies &middot; v1.1.0 &middot; &copy; {% now "Y" %} Meili Property Solution</small>
+      </footer>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>Welcome, {{ request.user.first_name|default:request.user.email }}</h1>
+  <p class="muted">Meili Property Solution — operations overview</p>
+</section>
+
+<div class="cards-grid">
+  <div class="card">
+    <div class="card-label">Your roles</div>
+    <div class="card-value">
+      {% for r in user_role_names %}<span class="badge">{{ r }}</span>{% empty %}<span class="muted">No roles assigned</span>{% endfor %}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-label">Quick links</div>
+    <ul class="plain-list">
+      <li><a href="{% url 'core:tenant-list' %}">Tenants</a></li>
+      <li><a href="{% url 'core:house-list' %}">Houses</a></li>
+      <li><a href="{% url 'core:estate-list' %}">Estates</a></li>
+      <li><a href="{% url 'accounting:account-list' %}">Chart of Accounts</a></li>
+      <li><a href="{% url 'accounting:commission-report' %}">Commission Report</a></li>
+    </ul>
+  </div>
+</div>
+{% endblock %}

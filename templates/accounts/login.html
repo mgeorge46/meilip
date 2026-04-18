@@ -1,0 +1,29 @@
+{% extends "accounts/_auth_base.html" %}
+{% block title %}Sign in · Meili Property Solutions {% endblock %}
+{% block auth_content %}
+<h1>Sign in</h1>
+<p class="muted">Use your Meili Property Solutions  credentials.</p>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="alert error">{{ form.non_field_errors|join:" " }}</div>
+  {% endif %}
+
+  <div class="form-field">
+    <label for="id_email">Email</label>
+    {{ form.email }}
+    {% if form.email.errors %}<div class="field-error">{{ form.email.errors|join:" " }}</div>{% endif %}
+  </div>
+
+  <div class="form-field">
+    <label for="id_password">Password</label>
+    {{ form.password }}
+    {% if form.password.errors %}<div class="field-error">{{ form.password.errors|join:" " }}</div>{% endif %}
+  </div>
+<br>
+  <button type="submit" class="btn primary block">Sign in</button>
+</form>
+
+<p class="auth-link"><a href="{% url 'accounts:password-reset' %}">Forgot your password?</a></p>
+{% endblock %}

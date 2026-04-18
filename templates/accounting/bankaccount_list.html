@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Bank accounts · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div><h1>Bank accounts</h1></div>
+  <div><a class="btn primary" href="{% url 'accounting:bankaccount-create' %}">+ New Bank Account</a></div>
+</section>
+
+<div class="card">
+  <table class="data">
+    <thead><tr><th>Name</th><th>Kind</th><th>Bank / Provider</th><th>Number</th><th>Currency</th><th>Ledger</th><th>Active</th><th></th></tr></thead>
+    <tbody>
+      {% for b in bankaccounts %}
+      <tr>
+        <td><a href="{% url 'accounting:bankaccount-detail' b.pk %}">{{ b.name }}</a></td>
+        <td>{{ b.get_kind_display }}</td>
+        <td>{{ b.bank_name|default:b.mobile_provider|default:"—" }}</td>
+        <td>{{ b.account_number|default:b.mobile_number|default:"—" }}</td>
+        <td>{{ b.currency.code }}</td>
+        <td>{{ b.ledger_account.code }} — {{ b.ledger_account.name }}</td>
+        <td>{% if b.is_active %}<span class="badge active">Yes</span>{% else %}<span class="badge exited">No</span>{% endif %}</td>
+        <td class="actions"><a href="{% url 'accounting:bankaccount-update' b.pk %}">Edit</a></td>
+      </tr>
+      {% empty %}<tr><td colspan="8" class="muted">No bank accounts yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include "core/pagination.html" %}
+{% endblock %}

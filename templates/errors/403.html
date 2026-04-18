@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}403 Forbidden · Meili Property{% endblock %}
+{% block content %}
+<section class="error-shell">
+  <div class="error-card">
+    <div class="error-code">403</div>
+    <h1>Forbidden</h1>
+    <p class="muted">You don&rsquo;t have permission to access this resource. If you believe this is in error, contact an administrator.</p>
+    <p><a class="btn primary" href="{% url 'dashboard:home' %}">Back to Dashboard</a></p>
+  </div>
+</section>
+{% endblock %}

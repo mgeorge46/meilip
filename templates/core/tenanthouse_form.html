@@ -1,0 +1,5 @@
+{% extends "core/_form.html" %}
+{% block form_title %}New tenancy{% endblock %}
+{% block form_heading %}Attach tenant to house{% endblock %}
+{% block form_subtitle %}<p class="muted">A new tenancy starts as <strong>Prospect</strong>. Use the Activate action on the tenant page to move it to Active.</p>{% endblock %}
+{% block form_cancel %}<a class="btn ghost" href="{% url 'core:tenant-list' %}">Cancel</a>{% endblock %}

@@ -22,3 +22,20 @@ def get_effective_setting(house, field_name):
     except ObjectDoesNotExist:
         return None
     return getattr(estate, field_name, None) if estate else None
+
+
+def get_effective_setting_with_source(house, field_name):
+    """Like get_effective_setting, but also returns the source: 'house', 'estate', or 'none'."""
+    if house is None:
+        return None, "none"
+    value = getattr(house, field_name, None)
+    if value is not None:
+        return value, "house"
+    try:
+        estate = house.estate
+    except ObjectDoesNotExist:
+        return None, "none"
+    if estate is None:
+        return None, "none"
+    estate_value = getattr(estate, field_name, None)
+    return (estate_value, "estate") if estate_value is not None else (None, "none")

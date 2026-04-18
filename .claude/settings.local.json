@@ -19,7 +19,11 @@
       "Bash(PGPASSWORD=heaven2870 \"C:/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -d meili_prd01 -h localhost -c \"SELECT COUNT\\(*\\) AS roles FROM accounts_role; SELECT COUNT\\(*\\) AS currencies FROM core_currency; SELECT COUNT\\(*\\) AS cycles FROM core_billingcycle;\")",
       "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py makemigrations accounting)",
       "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py test accounting accounts core -v 1)",
-      "Bash(PGPASSWORD=heaven2870 \"C:/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -d meili_prd01 -h localhost -c \"SELECT code, name, system_code FROM accounting_account ORDER BY code;\")"
+      "Bash(PGPASSWORD=heaven2870 \"C:/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -d meili_prd01 -h localhost -c \"SELECT code, name, system_code FROM accounting_account ORDER BY code;\")",
+      "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py check)",
+      "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py makemigrations)",
+      "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py test dashboard core accounts accounting -v 2)",
+      "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py test dashboard core accounts accounting)"
     ]
   }
 }

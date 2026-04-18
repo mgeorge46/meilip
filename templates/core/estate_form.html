@@ -1,0 +1,4 @@
+{% extends "core/_form.html" %}
+{% block form_title %}{% if object %}Edit estate{% else %}New estate{% endif %}{% endblock %}
+{% block form_heading %}{% if object %}Edit: {{ object.name }}{% else %}New estate{% endif %}{% endblock %}
+{% block form_cancel %}<a class="btn ghost" href="{% url 'core:estate-list' %}">Cancel</a>{% endblock %}

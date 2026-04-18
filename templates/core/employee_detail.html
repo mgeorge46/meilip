@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ employee.full_name }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>{{ employee.full_name }}</h1>
+    <p class="muted">{{ employee.user.email }} · {{ employee.phone|default:"—" }}</p>
+  </div>
+  <div>
+    <a class="btn ghost" href="{% url 'core:employee-list' %}">Back</a>
+    <a class="btn primary" href="{% url 'core:employee-update' employee.pk %}">Edit</a>
+  </div>
+</section>
+
+<div class="card">
+  <dl class="kv">
+    <dt>User</dt><dd>{{ employee.user.email }}</dd>
+    <dt>Phone</dt><dd>{{ employee.phone|default:"—" }}</dd>
+    <dt>ID number</dt><dd>{{ employee.id_number|default:"—" }}</dd>
+    <dt>Manager</dt><dd>{{ employee.manager.full_name|default:"—" }}</dd>
+    <dt>Trusted (self-approve payments)</dt>
+    <dd>{% if not employee.requires_checker %}<span class="badge active">Yes</span>{% else %}<span class="badge draft">No</span>{% endif %}</dd>
+    <dt>Active</dt><dd>{% if employee.is_active %}Yes{% else %}No{% endif %}</dd>
+  </dl>
+</div>
+
+<form method="post" action="{% url 'core:employee-delete' employee.pk %}" class="danger-zone"
+      onsubmit="return confirm('Delete this employee?');">
+  {% csrf_token %}
+  <button type="submit" class="btn danger">Delete employee</button>
+</form>
+{% endblock %}

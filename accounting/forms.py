@@ -1,7 +1,16 @@
 from django import forms
 from django.forms import inlineformset_factory
 
-from .models import JournalEntry, JournalEntryLine
+from .models import BankAccount, JournalEntry, JournalEntryLine
+
+
+class BankAccountForm(forms.ModelForm):
+    class Meta:
+        model = BankAccount
+        fields = [
+            "name", "kind", "bank_name", "account_number", "branch",
+            "mobile_provider", "mobile_number", "currency", "ledger_account", "is_active",
+        ]
 
 
 class JournalEntryForm(forms.ModelForm):

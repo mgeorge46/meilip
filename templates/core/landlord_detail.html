@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ landlord.full_name }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>{{ landlord.full_name }}</h1>
+    <p class="muted">{% if landlord.is_meili_owned %}Meili-owned{% else %}Managed{% endif %} · {{ landlord.get_status_display }}</p>
+  </div>
+  <div>
+    <a class="btn ghost" href="{% url 'core:landlord-list' %}">Back</a>
+    <a class="btn primary" href="{% url 'core:landlord-update' landlord.pk %}">Edit</a>
+  </div>
+</section>
+
+<div class="card">
+  <dl class="kv">
+    <dt>Phone</dt><dd>{{ landlord.phone|default:"—" }}</dd>
+    <dt>Email</dt><dd>{{ landlord.email|default:"—" }}</dd>
+    <dt>ID number</dt><dd>{{ landlord.id_number|default:"—" }}</dd>
+    <dt>Bank</dt><dd>{{ landlord.bank_name|default:"—" }} · {{ landlord.bank_account_number|default:"—" }}</dd>
+    <dt>Branch</dt><dd>{{ landlord.bank_branch|default:"—" }}</dd>
+    <dt>Notes</dt><dd>{{ landlord.notes|default:"—" }}</dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h2>Estates</h2>
+  <table class="data">
+    <thead><tr><th>Name</th><th>Location</th><th>Houses</th></tr></thead>
+    <tbody>
+      {% for e in landlord.estates.all %}
+        <tr>
+          <td><a href="{% url 'core:estate-detail' e.pk %}">{{ e.name }}</a></td>
+          <td>{{ e.location|default:"—" }}</td>
+          <td>{{ e.houses.count }}</td>
+        </tr>
+      {% empty %}<tr><td colspan="3" class="muted">No estates.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<form method="post" action="{% url 'core:landlord-delete' landlord.pk %}" class="danger-zone"
+      onsubmit="return confirm('Delete this landlord?');">
+  {% csrf_token %}
+  <button type="submit" class="btn danger">Delete landlord</button>
+</form>
+{% endblock %}

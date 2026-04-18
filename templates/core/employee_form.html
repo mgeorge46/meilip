@@ -1,0 +1,4 @@
+{% extends "core/_form.html" %}
+{% block form_title %}{% if object %}Edit employee{% else %}New employee{% endif %}{% endblock %}
+{% block form_heading %}{% if object %}Edit: {{ object.full_name }}{% else %}New employee{% endif %}{% endblock %}
+{% block form_cancel %}<a class="btn ghost" href="{% url 'core:employee-list' %}">Cancel</a>{% endblock %}

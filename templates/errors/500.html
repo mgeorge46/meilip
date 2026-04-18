@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}500 Server Error · Meili Property{% endblock %}
+{% block content %}
+<section class="error-shell">
+  <div class="error-card">
+    <div class="error-code">500</div>
+    <h1>Something went wrong</h1>
+    <p class="muted">The server encountered an unexpected error. Our team has been notified.</p>
+    <p><a class="btn primary" href="{% url 'dashboard:home' %}">Back to Dashboard</a></p>
+  </div>
+</section>
+{% endblock %}

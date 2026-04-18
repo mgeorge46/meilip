@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}My profile · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>My profile</h1>
+  <p class="muted">{{ request.user.email }}</p>
+</section>
+
+<div class="card form-card">
+  {% if not can_edit %}
+    <div class="alert info">
+      Tenants and landlords cannot edit their own profile details. Contact an employee to request changes.
+    </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+    <div class="form-row">
+      <div class="form-field">
+        <label for="id_first_name">First name</label>
+        {{ form.first_name }}
+      </div>
+      <div class="form-field">
+        <label for="id_last_name">Last name</label>
+        {{ form.last_name }}
+      </div>
+    </div>
+    <div class="form-field">
+      <label for="id_phone">Phone</label>
+      {{ form.phone }}
+      {% if form.phone.errors %}<div class="field-error">{{ form.phone.errors|join:" " }}</div>{% endif %}
+    </div>
+    <div class="form-field">
+      <label for="id_profile_picture">Profile picture</label>
+      {{ form.profile_picture }}
+    </div>
+
+    {% if can_edit %}
+      <button type="submit" class="btn primary">Save changes</button>
+    {% else %}
+      <button type="button" class="btn primary" disabled>Save changes</button>
+    {% endif %}
+    <a class="btn ghost" href="{% url 'accounts:password-change' %}">Change password</a>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-label">Active roles</div>
+  <div>
+    {% for r in user_role_names %}<span class="badge">{{ r }}</span>{% empty %}<span class="muted">None</span>{% endfor %}
+  </div>
+</div>
+{% endblock %}

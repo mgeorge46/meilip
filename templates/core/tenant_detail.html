@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ tenant.full_name }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>{{ tenant.full_name }}</h1>
+    <p class="muted">{{ tenant.phone }} · {{ tenant.email|default:"no email" }} · <span class="badge {{ tenant.derived_status|lower }}">{{ tenant.derived_status }}</span></p>
+  </div>
+  <div>
+    <a class="btn ghost" href="{% url 'core:tenant-list' %}">Back</a>
+    <a class="btn primary" href="{% url 'core:tenant-update' tenant.pk %}">Edit</a>
+  </div>
+</section>
+
+<div class="card">
+  <dl class="kv">
+    <dt>ID number</dt><dd>{{ tenant.id_number|default:"—" }}</dd>
+    <dt>Next of kin</dt><dd>{{ tenant.next_of_kin_name|default:"—" }} · {{ tenant.next_of_kin_phone|default:"—" }}</dd>
+    <dt>Preferred notification</dt><dd>{{ tenant.get_preferred_notification_display }}</dd>
+    <dt>Preferred receipt</dt><dd>{{ tenant.get_preferred_receipt_display }}</dd>
+    <dt>Sales rep</dt><dd>{{ tenant.sales_rep.full_name|default:"—" }}</dd>
+  </dl>
+</div>
+
+<div class="card">
+  <div class="between">
+    <h2>Tenancies</h2>
+    <a class="btn ghost" href="{% url 'core:tenancy-create' %}?tenant={{ tenant.pk }}">+ New tenancy</a>
+  </div>
+  <table class="data">
+    <thead><tr><th>House</th><th>Status</th><th>Move-in</th><th>Move-out</th><th></th></tr></thead>
+    <tbody>
+      {% for th in tenancies %}
+        <tr>
+          <td><a href="{% url 'core:house-detail' th.house_id %}">{{ th.house }}</a></td>
+          <td><span class="badge {{ th.status|lower }}">{{ th.get_status_display }}</span></td>
+          <td>{{ th.move_in_date|default:"—" }}</td>
+          <td>{{ th.move_out_date|default:"—" }}</td>
+          <td class="actions">
+            {% if th.status == 'PROSPECT' %}
+              <form method="post" action="{% url 'core:tenancy-activate' th.pk %}" class="inline">
+                {% csrf_token %}<button class="btn ghost small" type="submit">Activate</button>
+              </form>
+            {% elif th.status == 'ACTIVE' %}
+              <form method="post" action="{% url 'core:tenancy-exit' th.pk %}" class="inline"
+                    onsubmit="return confirm('Mark this tenancy as exited?');">
+                {% csrf_token %}<button class="btn ghost small" type="submit">Exit</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}<tr><td colspan="5" class="muted">No tenancies yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<form method="post" action="{% url 'core:tenant-delete' tenant.pk %}" class="danger-zone"
+      onsubmit="return confirm('Delete this tenant?');">
+  {% csrf_token %}
+  <button type="submit" class="btn danger">Delete tenant</button>
+</form>
+{% endblock %}

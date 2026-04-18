@@ -3,6 +3,7 @@ Django settings for meili_property project.
 Django 6.0 / Python 3.12+. Windows dev, Linux prod.
 """
 
+import sys
 from pathlib import Path
 
 import environ
@@ -38,6 +39,7 @@ INSTALLED_APPS = [
     "accounts.apps.AccountsConfig",
     "core.apps.CoreConfig",
     "accounting.apps.AccountingConfig",
+    "dashboard.apps.DashboardConfig",
 ]
 
 MIDDLEWARE = [
@@ -65,6 +67,8 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "accounts.context_processors.user_roles",
+                "dashboard.context_processors.notifications",
             ],
         },
     },
@@ -140,6 +144,13 @@ STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
+
+# Under tests and in DEBUG, bypass the manifest requirement (collectstatic
+# hasn't run). Production keeps the hashed/compressed manifest storage.
+if DEBUG or "test" in sys.argv:
+    STORAGES["staticfiles"]["BACKEND"] = (
+        "django.contrib.staticfiles.storage.StaticFilesStorage"
+    )
 
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"

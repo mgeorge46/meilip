@@ -1,0 +1,46 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ page_title|default:"Meili Property" }}{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/base.css' %}">
+  <!-- Select2 (CDN) — applied to every <select> with class .select2 (or all selects within .select2-auto) -->
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  <div class="app-shell">
+    {% include "layouts/sidebar.html" %}
+    {% include "layouts/header.html" %}
+
+    <main class="app-main" role="main">
+      {% if messages %}
+        <div class="messages">
+          {% for m in messages %}
+            <div class="alert {{ m.tags|default:'info' }}">{{ m }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% block content %}{% endblock %}
+    </main>
+
+    {% include "layouts/footer.html" %}
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <script src="{% static 'js/layout.js' %}"></script>
+  <script>
+    // Select2 on every <select> that opts in (or blanket across forms with .select2-auto)
+    $(function () {
+      $("select.select2, .select2-auto select").select2({ width: "resolve" });
+    });
+  </script>
+  {% block body_extra %}{% endblock %}
+</body>
+</html>
