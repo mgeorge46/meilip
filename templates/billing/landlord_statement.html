@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Landlord Statement · {{ landlord.full_name }}{% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>Landlord Statement</h1>
+  <p class="muted">{{ landlord.full_name }} · Advance balances are fiduciary and not shown to the landlord.</p>
+</section>
+<div class="card">
+  <table class="data">
+    <thead><tr>
+      <th>Invoice</th><th>Tenant</th><th>House</th><th>Period</th>
+      <th class="num">Total</th><th class="num">Outstanding</th><th>Status</th>
+    </tr></thead>
+    <tbody>
+      {% for inv in invoices %}
+        <tr>
+          <td><a href="{% url 'billing:invoice-detail' inv.pk %}">{{ inv.number|default:inv.pk }}</a></td>
+          <td>{{ inv.tenant_house.tenant.full_name }}</td>
+          <td>{{ inv.tenant_house.house }}</td>
+          <td>{{ inv.period_from }} → {{ inv.period_to }}</td>
+          <td class="num">{{ inv.total }}</td>
+          <td class="num">{{ inv.outstanding }}</td>
+          <td><span class="badge status-{{ inv.status|lower }}">{{ inv.get_status_display }}</span></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="muted">No invoices.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

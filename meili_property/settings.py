@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "core.apps.CoreConfig",
     "accounting.apps.AccountingConfig",
     "dashboard.apps.DashboardConfig",
+    "billing.apps.BillingConfig",
 ]
 
 MIDDLEWARE = [

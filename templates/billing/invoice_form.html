@@ -1,0 +1,7 @@
+{% extends "core/_form.html" %}
+{% block form_title %}Manual Invoice{% endblock %}
+{% block form_heading %}Manual Invoice{% endblock %}
+{% block form_subtitle %}
+<p class="muted">Manual invoices are saved as Draft. Backdated invoices require a written reason.</p>
+{% endblock %}
+{% block form_cancel %}<a class="btn" href="{% url 'billing:invoice-list' %}">Cancel</a>{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Invoice {{ invoice.number|default:invoice.pk }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>Invoice {{ invoice.number|default:"(draft)" }}</h1>
+    <p class="muted">{{ invoice.tenant_house.tenant.full_name }} · {{ invoice.tenant_house.house }}</p>
+  </div>
+  <div>
+    <span class="badge status-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
+    {% if invoice.status == 'DRAFT' %}
+      <form method="post" action="{% url 'billing:invoice-delete' invoice.pk %}" style="display:inline" onsubmit="return confirm('Delete this draft?')">
+        {% csrf_token %}
+        <button class="btn danger">Delete (Super Admin)</button>
+      </form>
+    {% endif %}
+  </div>
+</section>
+
+<div class="card">
+  <dl class="kv">
+    <dt>Period</dt><dd>{{ invoice.period_from }} → {{ invoice.period_to }}</dd>
+    <dt>Issue date</dt><dd>{{ invoice.issue_date }}</dd>
+    <dt>Due date</dt><dd>{{ invoice.due_date }}</dd>
+    <dt>Subtotal</dt><dd>{{ invoice.subtotal }}</dd>
+    <dt>Tax</dt><dd>{{ invoice.tax_total }}</dd>
+    <dt>Total</dt><dd><strong>{{ invoice.total }}</strong></dd>
+    <dt>Outstanding</dt><dd><strong>{{ invoice.outstanding }}</strong></dd>
+    {% if invoice.is_backdated %}<dt>Backdate reason</dt><dd>{{ invoice.backdate_reason }}</dd>{% endif %}
+  </dl>
+</div>
+
+<div class="card">
+  <h2>Lines</h2>
+  <table class="data">
+    <thead><tr><th>Kind</th><th>Description</th><th>Target</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      {% for l in invoice.lines.all %}
+      <tr>
+        <td>{{ l.get_kind_display }}</td>
+        <td>{{ l.description }}</td>
+        <td>{{ l.get_target_display|default:"—" }}</td>
+        <td class="num">{{ l.amount }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if invoice.tax_lines.all %}
+<div class="card">
+  <h2>Tax lines</h2>
+  <table class="data">
+    <thead><tr><th>Tax</th><th class="num">Taxable</th><th class="num">Rate %</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      {% for t in invoice.tax_lines.all %}
+        <tr><td>{{ t.tax_type.code }}</td><td class="num">{{ t.taxable_amount }}</td><td class="num">{{ t.rate_percent }}</td><td class="num">{{ t.amount }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if invoice.allocations.all %}
+<div class="card">
+  <h2>Payment allocations</h2>
+  <table class="data">
+    <thead><tr><th>Payment</th><th>When</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      {% for a in invoice.allocations.all %}
+        <tr><td>{{ a.payment.number|default:a.payment.pk }}</td><td>{{ a.allocated_at }}</td><td class="num">{{ a.amount }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if invoice.status not in 'VOIDED,CANCELLED' %}
+<div class="card">
+  <h2>Actions</h2>
+  <a class="btn" href="{% url 'billing:void-create' %}?invoice={{ invoice.pk }}">Request Void</a>
+  <a class="btn" href="{% url 'billing:credit-note-create' %}?invoice={{ invoice.pk }}">Issue Credit Note</a>
+</div>
+{% endif %}
+{% endblock %}

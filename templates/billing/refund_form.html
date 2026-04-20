@@ -1,0 +1,7 @@
+{% extends "core/_form.html" %}
+{% block form_title %}Refund{% endblock %}
+{% block form_heading %}Issue Refund{% endblock %}
+{% block form_subtitle %}
+<p class="muted">Refunds always require maker-checker approval (no trusted bypass). The source account determines ledger routing.</p>
+{% endblock %}
+{% block form_cancel %}<a class="btn" href="{% url 'billing:approvals' %}">Cancel</a>{% endblock %}

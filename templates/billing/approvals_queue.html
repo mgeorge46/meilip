@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Pending Approvals · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header"><h1>Pending Approvals</h1></section>
+
+<div class="tabs">
+  {% for code, label in tabs %}
+    <a href="?tab={{ code }}" class="tab {% if code == active_tab %}active{% endif %}">{{ label }}</a>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <table class="data">
+    <thead><tr>
+      <th>ID</th><th>Maker</th><th>Submitted</th><th>Summary</th><th class="actions">Actions</th>
+    </tr></thead>
+    <tbody>
+      {% for item in items %}
+        <tr class="{% if item.submitted_at and item.submitted_at < overdue_threshold %}overdue{% endif %}">
+          <td>#{{ item.pk }}</td>
+          <td>{{ item.maker|default:"—" }}</td>
+          <td>
+            {{ item.submitted_at|default:"—" }}
+            {% if item.submitted_at and item.submitted_at < overdue_threshold %}
+              <span class="badge warn">Overdue &gt;24h</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if active_tab == 'payment' %}
+              Payment {{ item.amount }} — {{ item.tenant.full_name }} via {{ item.get_method_display }}
+            {% elif active_tab == 'adhoc' %}
+              Ad-hoc {{ item.amount }} — {{ item.description }} ({{ item.tenant_house }})
+            {% elif active_tab == 'void' %}
+              Void of invoice {{ item.invoice.number|default:item.invoice.pk }} — {{ item.get_reason_category_display }}
+            {% elif active_tab == 'credit' %}
+              Credit {{ item.amount }} on invoice {{ item.original_invoice.number|default:item.original_invoice.pk }}
+            {% elif active_tab == 'refund' %}
+              Refund {{ item.amount }} via {{ item.get_method_display }} from {{ item.get_source_display }}
+            {% endif %}
+          </td>
+          <td class="actions">
+            <form method="post" action="{% url 'billing:approval-action' active_tab item.pk 'approve' %}" style="display:inline">
+              {% csrf_token %}
+              <button class="btn primary" type="submit">Approve</button>
+            </form>
+            <form method="post" action="{% url 'billing:approval-action' active_tab item.pk 'reject' %}" style="display:inline">
+              {% csrf_token %}
+              <input type="text" name="reason" placeholder="Reason" required>
+              <button class="btn danger" type="submit">Reject</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="muted">No pending items.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include "core/pagination.html" %}
+{% endblock %}

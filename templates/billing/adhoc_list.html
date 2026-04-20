@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Ad-hoc Charges · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div><h1>Ad-hoc Charges</h1></div>
+  <div><a class="btn primary" href="{% url 'billing:adhoc-create' %}">+ New Ad-hoc Charge</a></div>
+</section>
+<div class="card">
+  <table class="data">
+    <thead><tr><th>Tenancy</th><th>Description</th><th class="num">Amount</th><th>Target</th><th>Bill on/after</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for c in charges %}
+      <tr>
+        <td>{{ c.tenant_house }}</td>
+        <td>{{ c.description }}</td>
+        <td class="num">{{ c.amount }}</td>
+        <td>{{ c.get_target_display }}</td>
+        <td>{{ c.bill_on_or_after }}</td>
+        <td><span class="badge approval-{{ c.approval_status|lower }}">{{ c.get_approval_status_display }}</span></td>
+      </tr>
+      {% empty %}<tr><td colspan="6" class="muted">No ad-hoc charges yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% include "core/pagination.html" %}
+{% endblock %}

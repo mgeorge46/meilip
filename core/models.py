@@ -426,9 +426,21 @@ class TenantHouse(CoreBaseModel):
         ACTIVE = "ACTIVE", "Active"
         EXITED = "EXITED", "Exited"
 
+    class InvoiceGenerationStatus(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        PAUSED = "PAUSED", "Paused"
+        STOPPED = "STOPPED", "Stopped"
+
     tenant = models.ForeignKey(Tenant, on_delete=models.PROTECT, related_name="tenancies")
     house = models.ForeignKey(House, on_delete=models.PROTECT, related_name="tenancies")
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.PROSPECT)
+    invoice_generation_status = models.CharField(
+        max_length=16,
+        choices=InvoiceGenerationStatus.choices,
+        default=InvoiceGenerationStatus.ACTIVE,
+        help_text="PAUSED skips generation but keeps accrual; STOPPED halts billing entirely.",
+    )
+    invoice_generation_note = models.CharField(max_length=255, blank=True)
     move_in_date = models.DateField(null=True, blank=True)
     move_out_date = models.DateField(null=True, blank=True)
     billing_start_date = models.DateField(null=True, blank=True)

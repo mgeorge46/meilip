@@ -1,0 +1,31 @@
+<!doctype html>
+<html><head>
+<meta charset="utf-8">
+<title>Receipt {{ receipt.number }}</title>
+<style>
+  @page { size: 80mm auto; margin: 0; }
+  body { font-family: "Courier New", monospace; font-size: 11pt; width: 72mm; margin: 4mm; }
+  h1 { font-size: 13pt; text-align: center; margin: 2mm 0; }
+  .row { display: flex; justify-content: space-between; }
+  hr { border: none; border-top: 1px dashed #000; margin: 3mm 0; }
+  .total { font-weight: bold; font-size: 12pt; }
+  .center { text-align: center; }
+  @media print { body { width: 72mm; } }
+  /* 58mm variant — add ?w=58 to body class upstream if needed */
+</style>
+</head><body onload="window.print()">
+<h1>MEILI PROPERTY</h1>
+<p class="center">PAYMENT RECEIPT</p>
+<hr>
+<div class="row"><span>#</span><span>{{ receipt.number }}</span></div>
+<div class="row"><span>Date</span><span>{{ receipt.issued_at|date:"Y-m-d H:i" }}</span></div>
+<div class="row"><span>Tenant</span><span>{{ receipt.payment.tenant.full_name|truncatechars:22 }}</span></div>
+<div class="row"><span>Method</span><span>{{ receipt.payment.get_method_display }}</span></div>
+{% if receipt.payment.reference_number %}
+<div class="row"><span>Ref</span><span>{{ receipt.payment.reference_number|truncatechars:22 }}</span></div>
+{% endif %}
+<hr>
+<div class="row total"><span>TOTAL</span><span>{{ receipt.amount }} UGX</span></div>
+<hr>
+<p class="center">Thank you.</p>
+</body></html>

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Receipt {{ receipt.number }}{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div><h1>Receipt {{ receipt.number }}</h1></div>
+  <div>
+    <a class="btn" href="?fmt=print">A4</a>
+    <a class="btn" href="?fmt=thermal">Thermal</a>
+  </div>
+</section>
+<div class="card receipt-mobile">
+  <h2>Meili Property</h2>
+  <p class="muted">Receipt for payment</p>
+  <dl class="kv">
+    <dt>Receipt #</dt><dd>{{ receipt.number }}</dd>
+    <dt>Issued</dt><dd>{{ receipt.issued_at }}</dd>
+    <dt>Tenant</dt><dd>{{ receipt.payment.tenant.full_name }}</dd>
+    <dt>Amount</dt><dd><strong>{{ receipt.amount }} UGX</strong></dd>
+    <dt>Method</dt><dd>{{ receipt.payment.get_method_display }}</dd>
+    <dt>Reference</dt><dd>{{ receipt.payment.reference_number|default:"—" }}</dd>
+  </dl>
+  <p class="muted small">Thank you for your payment.</p>
+</div>
+{% endblock %}

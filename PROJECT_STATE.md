@@ -1,18 +1,19 @@
 # Project State
 
 ## Current Phase
-Phase 3 — Employee Dashboard: UI Layout, Design System, Entity CRUD (complete)
+Phase 4 — Billing Engine (complete)
 
 ## Last Completed
-Phase 3 — Employee Dashboard (2026-04-17)
+Phase 4 — Billing Engine (2026-04-21)
 
 ## Next Up
-Phase 4 — Billing (invoices, schedules, payment allocation, maker-checker)
+Phase 5 — Payments ingress (webhook intake, MTN/Airtel/Bank reconciliation, notifications)
 
 ## Completed Phases
 - [x] Phase 1 — Project Setup, Custom Auth & Core Models
 - [x] Phase 2 — Chart of Accounts & Accounting
 - [x] Phase 3 — Employee Dashboard: UI Layout, Design System, Entity CRUD
+- [x] Phase 4 — Billing Engine
 
 ## Phase 1 Deliverables
 - `requirements.txt` (runtime), `requirements-dev.txt` (dev-only), `requirements.lock.txt` (frozen)
@@ -64,6 +65,58 @@ Phase 4 — Billing (invoices, schedules, payment allocation, maker-checker)
 - [ ] User creates their superuser:
   `python manage.py create_initial_superuser --email <email> --phone +256... --first-name <> --last-name <> --password <strong>`
 
+## Phase 4 Deliverables
+- `billing` app — full billing engine per SPEC §16 / §20
+- Models (all historied where they carry money):
+  - `NumberSequence` — atomic per-prefix, per-period counter (INV/CRN/REF/RCP pad 5; JE pad 6). Allocated via `select_for_update()` inside `allocate_number(prefix)`
+  - `Invoice` — state machine DRAFT→ISSUED→{PARTIALLY_PAID→PAID, OVERDUE→PAID, VOIDED, CANCELLED}; `DELETABLE_STATUSES = {DRAFT, CANCELLED}` enforced on `delete()` (raises `ProtectedFinancialRecord` otherwise — Super Admin only, drafts only)
+  - `InvoiceLine`, `InvoiceTaxLine` — per-line tax breakdown
+  - `Payment` + `PaymentAllocation` — FIFO tenant allocation with approval_status
+  - `Receipt` / `RefundReceipt` — generated on paid / refunded events
+  - `AdHocCharge` — standalone charges (damages, utilities, cleaning, etc.)
+  - `InvoiceVoid` — reversing journal entry workflow
+  - `CreditNote` — amount-capped; proportional commission reversal for managed properties
+  - `Refund` — source-account routed (overpayment, held-advance, damage-deposit, etc.)
+- `core.TenantHouse.invoice_generation_status` field (ACTIVE/PAUSED/STOPPED) + `invoice_generation_note` for pause/stop reason
+- `billing/exceptions.py` — `ProtectedFinancialRecord`, `SelfApprovalBlocked`, `TrustedBypassBlocked`, `InvalidInvoiceTransition`, `CreditNoteExceedsInvoice`, `InvoiceGenerationPaused`
+- `billing/services.py` — business logic:
+  - `_add_cycle(d, cycle)` / `compute_next_period` / `compute_prorata` — handles HOUR/DAY/WEEK/MONTH/QUARTER/SEMI_ANNUAL/YEAR with month clamping; PRO_RATA vs NEXT_CYCLE first-invoice behaviour
+  - `generate_invoice_for_tenancy` — creates, issues, auto-applies any held advance on the same tenancy
+  - `_issue_and_post` — Dr AR; Cr LANDLORD_PAYABLE (managed) or RENT_INCOME (Meili-owned); Cr TAX_PAYABLE
+  - `apply_payment` — FIFO across outstanding invoices; surplus lands in `get_advance_holding_account(house)` (routed by `landlord.is_meili_owned`); issues RCP receipt
+  - `try_apply_advance_to_invoice` — held advance → newly-issued invoice (Dr Held Advance, Cr AR)
+  - `recognize_commission_on_allocation` — recognised only when cash is applied; PERCENTAGE via `%`, FIXED via pro-rata over rent total; skipped on Meili-owned; posts Dr LANDLORD_PAYABLE, Cr COMMISSION_INCOME
+  - `execute_void` — reverses accrual JE + commission postings; detaches payments back to held-advance
+  - `execute_credit_note` — Dr RENT_INCOME / LANDLORD_PAYABLE, Cr AR; proportional commission reversal on managed
+  - `execute_refund` — Dr source account, Cr bank/cash ledger; issues REF receipt
+  - `mark_overdue_invoices` — daily sweep
+- `MakerCheckerMixin` with `allow_trusted_bypass` class flag — True on Payment/AdHocCharge (trusted employees self-post), False on Void/CreditNote/Refund (never bypassable); self-approval always blocked
+- `billing/tasks.py` — `@shared_task` `generate_invoices` (hourly) + `mark_overdue` (daily 01:00) wired via `django-celery-beat` periodic tasks
+- `python manage.py generate_invoices [--today YYYY-MM-DD]` CLI for manual dry-runs / date override
+- Employee views (role-gated server-side via `RoleRequiredMixin` + `@role_required`):
+  - Invoice list/detail/create (manual issue — backdate requires reason), delete (Super Admin + draft-only)
+  - Payment list/detail/create
+  - Ad-hoc charge list/create
+  - Void/Credit/Refund create
+  - Approvals queue with tabs (payment/adhoc/void/credit/refund) + >24h overdue highlight
+  - Receipts in three formats: mobile HTML, A4 print, thermal 58/80mm
+  - Reports: Advance Payments (Managed/Meili-owned badges), Tenant Statement (arrears vs current split), Landlord Statement (never shows held advances)
+  - Pause/resume tenancy invoice generation
+- `billing/urls.py` with `app_name = "billing"` — routes for invoices/payments/adhoc/voids/credit-notes/refunds/approvals/receipts/reports/statements
+- Sequential numbering integrity: voided invoices keep their number; no gaps allowed; `CRN-`/`REF-`/`RCP-` follow the same monthly-scoped format
+- Admin registrations (read-mostly) for all billing models
+- 19 new billing tests (total **79 passing**):
+  - Sequential numbering — atomic allocation under concurrent writes, voided keeps number
+  - State-machine guard — only draft/cancelled deletable, illegal transitions raise
+  - Invoice generation — managed routes to LANDLORD_PAYABLE, paused blocks generation
+  - FIFO allocation — oldest first; surplus to managed advance account
+  - Commission — 10% recognised on managed, none on Meili-owned
+  - Maker-checker — self-approval blocked; trusted bypass allowed on Payment; void/credit/refund never bypass
+  - Void workflow — accrual + commission reversed, AR cleared
+  - Credit note bounds — amount cap enforced, number format CRN-, commission proportional reversal
+  - Refund routing — held-advance source posts balanced journal, REF- number
+  - Overdue sweep — ISSUED past due_date → OVERDUE
+
 ## Decisions Log
 - 2026-04-17 — Python 3.14.3 in `meili` venv (exceeds 3.12 minimum; Django 6.0.4 compatible).
 - 2026-04-17 — Added `SUPER_ADMIN` role in addition to the 7 roles in SPEC §2A.1 because §16.9 matrix requires a distinct Super Admin tier (draft deletion). `create_initial_superuser` assigns both `SUPER_ADMIN` and `ADMIN`.
@@ -83,6 +136,12 @@ Phase 4 — Billing (invoices, schedules, payment allocation, maker-checker)
 - 2026-04-17 — `get_effective_setting_with_source(house, field)` added next to `get_effective_setting` so the House detail page can show whether each effective setting is inherited from the estate or overridden at house level. Original single-return helper left intact for tests.
 - 2026-04-17 — Tenant/landlord self-edit guard enforced both on `accounts:profile` (view-level guard with message + redirect) and on `core:tenant-update` (403 when the tenant's linked user is the request user and holds no staff role). UI-hiding is not sufficient per CLAUDE.md.
 - 2026-04-17 — `TenantHouse` lifecycle transitions (`tenancy-activate` / `tenancy-exit`) only allowed from the permitted prior state. Activating a Prospect stamps today's `move_in_date` if blank and marks the house OCCUPIED. Exiting an Active tenancy stamps today's `move_out_date` if blank and re-vacates the house only when no other Active tenancy remains.
+- 2026-04-21 — `accounting.JournalEntry.reference` made nullable (`unique=True, null=True, blank=True`). Previously empty-string references on DRAFT entries collided on the unique index. Postgres treats NULLs as distinct, so draft entries now carry `NULL` until `post()` stamps `JE-YYYYMM-NNNNNN`. Migration `accounting/0003_alter_historicaljournalentry_reference_and_more.py`.
+- 2026-04-21 — Commission recognised only at **allocation** time, not at invoice issue. Ensures Meili earns commission only on cash collected (matches SPEC §20). Implemented via `recognize_commission_on_allocation(invoice, amount_applied)` called from inside `apply_payment` / `try_apply_advance_to_invoice`.
+- 2026-04-21 — Surplus-with-no-active-tenancy raises `ValidationError` rather than silently parking funds. Forces the finance user to resolve routing explicitly (usually a new tenancy record or a refund).
+- 2026-04-21 — Voids rewind `PaymentAllocation` rows back to held-advance (Dr AR, Cr Held Advance for the invoice's landlord routing) — not direct refunds. Separates void (accrual reversal) from refund (cash movement), which then requires its own maker-checker cycle.
+- 2026-04-21 — `services.py` kept as a single cohesive module — commission/allocation/void/credit/refund split across files only if it grows past ~600 LOC. Premature abstraction is worse than one readable file.
+- 2026-04-21 — `generate_invoices` beat schedule is **hourly** (not daily) so short cycles (HOUR/DAY) get picked up in time. `mark_overdue` runs once at 01:00 Africa/Kampala.
 
 ## Phase 3 Deliverables
 - `dashboard` app — home page, global search (4-table grouped: tenants/houses/estates/users), coming-soon placeholder, custom 403/404/500 error pages wired via `handler403`/`handler404`/`handler500` in the project `urls.py`

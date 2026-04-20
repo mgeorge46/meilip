@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Tenant Statement · {{ tenancy.tenant.full_name }}{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>Tenant Statement</h1>
+    <p class="muted">{{ tenancy.tenant.full_name }} · {{ tenancy.house }}</p>
+  </div>
+  <div>
+    <span class="badge">Arrears: {{ arrears }} UGX</span>
+    <span class="badge">Current: {{ current }} UGX</span>
+  </div>
+</section>
+
+<div class="card">
+  <table class="data">
+    <thead><tr>
+      <th>Invoice</th><th>Period</th><th>Due</th>
+      <th class="num">Total</th><th class="num">Paid</th><th class="num">Outstanding</th><th>Status</th><th>Bucket</th>
+    </tr></thead>
+    <tbody>
+      {% now "Y-m-d" as today_iso %}
+      {% for inv in invoices %}
+        <tr>
+          <td><a href="{% url 'billing:invoice-detail' inv.pk %}">{{ inv.number|default:inv.pk }}</a></td>
+          <td>{{ inv.period_from }} → {{ inv.period_to }}</td>
+          <td>{{ inv.due_date }}</td>
+          <td class="num">{{ inv.total }}</td>
+          <td class="num">{{ inv.amount_paid }}</td>
+          <td class="num">{{ inv.outstanding }}</td>
+          <td><span class="badge status-{{ inv.status|lower }}">{{ inv.get_status_display }}</span></td>
+          <td>
+            {% if inv.outstanding > 0 and inv.due_date|date:"Y-m-d" < today_iso %}
+              <span class="badge warn">Arrears</span>
+            {% else %}
+              <span class="badge">Current</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="muted">No invoices for this tenancy.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

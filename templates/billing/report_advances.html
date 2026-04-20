@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Advance Payments Report{% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>Advance Payments Held</h1>
+  <p class="muted">Employee-only view. Managed (fiduciary) vs Meili-Owned (deferred revenue) routing shown via badges.</p>
+</section>
+<div class="card">
+  <table class="data">
+    <thead><tr>
+      <th>Receipt #</th><th>Tenant</th><th class="num">Amount</th><th>Routing</th><th>Received</th>
+    </tr></thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.payment.number|default:row.payment.pk }}</td>
+          <td>{{ row.payment.tenant.full_name }}</td>
+          <td class="num">{{ row.amount }}</td>
+          <td>
+            {% with landlord=row.payment.tenant.tenancies.first.house.effective_landlord %}
+              {% if landlord.is_meili_owned %}
+                <span class="badge meili">Meili-Owned</span>
+              {% else %}
+                <span class="badge managed">Managed</span>
+              {% endif %}
+            {% endwith %}
+          </td>
+          <td>{{ row.allocated_at }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="muted">No advances held.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% include "core/pagination.html" %}
+{% endblock %}

@@ -1,0 +1,7 @@
+{% extends "core/_form.html" %}
+{% block form_title %}Credit Note{% endblock %}
+{% block form_heading %}Issue Credit Note{% endblock %}
+{% block form_subtitle %}
+<p class="muted">Credit notes always require maker-checker approval. Amount cannot exceed the invoice's remaining capacity.</p>
+{% endblock %}
+{% block form_cancel %}<a class="btn" href="{% url 'billing:invoice-list' %}">Cancel</a>{% endblock %}

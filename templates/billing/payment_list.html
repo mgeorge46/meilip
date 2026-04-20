@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Payments · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div><h1>Payments</h1></div>
+  <div><a class="btn primary" href="{% url 'billing:payment-create' %}">+ Record Payment</a></div>
+</section>
+<div class="card">
+  <table class="data">
+    <thead><tr><th>Receipt #</th><th>Tenant</th><th class="num">Amount</th><th>Method</th><th>Status</th><th>Received</th></tr></thead>
+    <tbody>
+      {% for p in payments %}
+      <tr>
+        <td><a href="{% url 'billing:payment-detail' p.pk %}">{{ p.number|default:"(pending)" }}</a></td>
+        <td>{{ p.tenant.full_name }}</td>
+        <td class="num">{{ p.amount }}</td>
+        <td>{{ p.get_method_display }}</td>
+        <td><span class="badge approval-{{ p.approval_status|lower }}">{{ p.get_approval_status_display }}</span></td>
+        <td>{{ p.received_at }}</td>
+      </tr>
+      {% empty %}<tr><td colspan="6" class="muted">No payments yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% include "core/pagination.html" %}
+{% endblock %}

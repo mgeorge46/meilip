@@ -23,7 +23,12 @@
       "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py check)",
       "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py makemigrations)",
       "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py test dashboard core accounts accounting -v 2)",
-      "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py test dashboard core accounts accounting)"
+      "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py test dashboard core accounts accounting)",
+      "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py makemigrations billing core)",
+      "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py migrate)",
+      "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py test billing)",
+      "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py makemigrations accounting)",
+      "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py test)"
     ]
   }
 }

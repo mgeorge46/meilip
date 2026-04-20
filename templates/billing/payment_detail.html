@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Payment {{ payment.number|default:payment.pk }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>Payment {{ payment.number|default:"(pending)" }}</h1>
+    <p class="muted">{{ payment.tenant.full_name }} · {{ payment.amount }} via {{ payment.get_method_display }}</p>
+  </div>
+  <div><span class="badge approval-{{ payment.approval_status|lower }}">{{ payment.get_approval_status_display }}</span></div>
+</section>
+
+<div class="card">
+  <dl class="kv">
+    <dt>Bank Account</dt><dd>{{ payment.bank_account }}</dd>
+    <dt>Reference</dt><dd>{{ payment.reference_number|default:"—" }}</dd>
+    <dt>Received at</dt><dd>{{ payment.received_at }}</dd>
+    <dt>Maker</dt><dd>{{ payment.maker }}</dd>
+    <dt>Checker</dt><dd>{{ payment.checker|default:"—" }}</dd>
+    {% if payment.rejection_reason %}<dt>Rejection reason</dt><dd>{{ payment.rejection_reason }}</dd>{% endif %}
+  </dl>
+</div>
+
+{% if payment.allocations.all %}
+<div class="card">
+  <h2>Allocations</h2>
+  <table class="data">
+    <thead><tr><th>Invoice</th><th>Advance hold</th><th class="num">Amount</th><th>Applied at</th></tr></thead>
+    <tbody>
+      {% for a in payment.allocations.all %}
+        <tr>
+          <td>{% if a.invoice %}<a href="{% url 'billing:invoice-detail' a.invoice.pk %}">{{ a.invoice.number|default:a.invoice.pk }}</a>{% else %}—{% endif %}</td>
+          <td>{% if a.is_advance_hold %}<span class="badge">Advance Held</span>{% else %}Applied{% endif %}</td>
+          <td class="num">{{ a.amount }}</td>
+          <td>{{ a.applied_at|default:"—" }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if payment.receipts.all %}
+<div class="card">
+  <h2>Receipts</h2>
+  <ul>
+    {% for r in payment.receipts.all %}
+      <li><a href="{% url 'billing:receipt-detail' r.pk %}">{{ r.number }}</a> — {{ r.amount }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endblock %}

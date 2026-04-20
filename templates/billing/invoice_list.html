@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Invoices · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div><h1>Invoices</h1></div>
+  <div><a class="btn primary" href="{% url 'billing:invoice-create' %}">+ Manual Invoice</a></div>
+</section>
+
+<form method="get" class="filter-bar">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search number / tenant">
+  <select name="status">
+    <option value="">All statuses</option>
+    {% for code, label in statuses %}
+      <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn">Filter</button>
+</form>
+
+<div class="card">
+  <table class="data">
+    <thead><tr>
+      <th>Number</th><th>Tenant</th><th>House</th><th>Period</th>
+      <th class="num">Total</th><th class="num">Outstanding</th><th>Status</th><th>Due</th>
+    </tr></thead>
+    <tbody>
+      {% for inv in invoices %}
+        <tr>
+          <td><a href="{% url 'billing:invoice-detail' inv.pk %}">{{ inv.number|default:"(draft)" }}</a></td>
+          <td>{{ inv.tenant_house.tenant.full_name }}</td>
+          <td>{{ inv.tenant_house.house }}</td>
+          <td>{{ inv.period_from }} → {{ inv.period_to }}</td>
+          <td class="num">{{ inv.total }}</td>
+          <td class="num">{{ inv.outstanding }}</td>
+          <td><span class="badge status-{{ inv.status|lower }}">{{ inv.get_status_display }}</span></td>
+          <td>{{ inv.due_date }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="muted">No invoices yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include "core/pagination.html" %}
+{% endblock %}

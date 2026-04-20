@@ -1,0 +1,7 @@
+{% extends "core/_form.html" %}
+{% block form_title %}Void Invoice{% endblock %}
+{% block form_heading %}Void Invoice{% endblock %}
+{% block form_subtitle %}
+<p class="muted">Voids always require maker-checker approval (no trusted bypass). You cannot approve your own void.</p>
+{% endblock %}
+{% block form_cancel %}<a class="btn" href="{% url 'billing:invoice-list' %}">Cancel</a>{% endblock %}

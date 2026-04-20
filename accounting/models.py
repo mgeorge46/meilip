@@ -158,7 +158,7 @@ class JournalEntry(CoreBaseModel):
         COMMISSION = "COMMISSION", "Commission"
         SYSTEM = "SYSTEM", "System"
 
-    reference = models.CharField(max_length=48, unique=True, blank=True)
+    reference = models.CharField(max_length=48, unique=True, null=True, blank=True)
     entry_date = models.DateField(default=timezone.localdate)
     memo = models.CharField(max_length=255, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
