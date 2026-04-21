@@ -16,9 +16,9 @@ class LandlordForm(forms.ModelForm):
     class Meta:
         model = Landlord
         fields = [
-            "full_name", "phone", "email", "id_number", "is_meili_owned",
+            "full_name", "phone", "whatsapp_number", "email", "id_number", "is_meili_owned",
             "bank_name", "bank_account_name", "bank_account_number", "bank_branch",
-            "status", "notes",
+            "status", "preferred_statement_channel", "notes",
         ]
 
 
@@ -70,7 +70,25 @@ class TenantHouseForm(forms.ModelForm):
 class EmployeeForm(forms.ModelForm):
     class Meta:
         model = Employee
-        fields = ["user", "full_name", "phone", "id_number", "manager", "requires_checker", "is_active"]
+        fields = [
+            # Identity
+            "user", "full_name", "phone", "id_number", "manager",
+            "job_title", "employment_type", "hire_date",
+            # Status / approval
+            "requires_checker", "is_active",
+            # Payroll earnings
+            "base_salary",
+            "allowance_transport", "allowance_housing",
+            "allowance_airtime", "allowance_other",
+            # Statutory / deductions
+            "paye_monthly", "nssf_employee", "nssf_employer", "other_deduction",
+            # Bank / tax references
+            "bank_name", "bank_account_name", "bank_account_number", "bank_branch",
+            "tin", "nssf_number",
+        ]
+        widgets = {
+            "hire_date": forms.DateInput(attrs={"type": "date"}),
+        }
 
 
 class SupplierForm(forms.ModelForm):

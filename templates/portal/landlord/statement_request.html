@@ -1,0 +1,33 @@
+{% extends "portal/landlord/_base.html" %}
+
+{% block portal_title %}Request Statement{% endblock %}
+
+{% block content %}
+<a href="{% url 'landlord:statement-list' %}" class="btn btn-sm btn-outline-secondary mb-3"><i class="bi bi-arrow-left"></i> Back</a>
+
+<div class="card">
+  <div class="card-header"><i class="bi bi-file-earmark-pdf me-2"></i>Request a statement</div>
+  <div class="card-body">
+    <p class="text-muted">
+      The statement will be generated in the background and emailed / WhatsApp-ed
+      per your preferred channel. It will also appear on the statements page for
+      manual download. Statement period is capped at <strong>{{ max_statement_months }} months</strong>.
+    </p>
+    <form method="post" class="row g-3">
+      {% csrf_token %}
+      <div class="col-md-6">
+        <label class="form-label">Period start</label>
+        <input type="date" name="period_start" class="form-control" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Period end</label>
+        <input type="date" name="period_end" class="form-control" required>
+      </div>
+      <div class="col-12 d-flex justify-content-end gap-2">
+        <a href="{% url 'landlord:statement-list' %}" class="btn btn-outline-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-play-fill me-1"></i>Generate</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

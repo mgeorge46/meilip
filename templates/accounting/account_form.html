@@ -1,0 +1,3 @@
+{% extends "core/_form.html" %}
+{% block form_heading %}{% if object %}Edit account · {{ object.code }}{% else %}New account{% endif %}{% endblock %}
+{% block form_subtitle %}<p class="muted">Leaf accounts can be posted to. Parent/rollup accounts must have <em>is postable</em> unchecked so journal entries only land on leaves.</p>{% endblock %}

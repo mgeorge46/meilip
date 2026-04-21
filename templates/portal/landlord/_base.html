@@ -1,0 +1,11 @@
+{% extends "portal/_base.html" %}
+
+{% block portal_name %}Landlord Portal{% endblock %}
+{% block home_url %}{% url 'landlord:dashboard' %}{% endblock %}
+
+{% block nav_items %}
+  <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'landlord:dashboard' %}"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
+  <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'house-list' %}active{% endif %}" href="{% url 'landlord:house-list' %}"><i class="bi bi-house-door me-1"></i>Houses</a></li>
+  <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name|slice:':9' == 'statement' %}active{% endif %}" href="{% url 'landlord:statement-list' %}"><i class="bi bi-file-earmark-pdf me-1"></i>Statements</a></li>
+  <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'profile' %}active{% endif %}" href="{% url 'landlord:profile' %}"><i class="bi bi-person-gear me-1"></i>Profile</a></li>
+{% endblock %}

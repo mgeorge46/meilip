@@ -1,0 +1,51 @@
+{% extends "portal/landlord/_base.html" %}
+
+{% block portal_title %}Profile{% endblock %}
+
+{% block content %}
+<h1 class="page-title h3 mb-4">My Profile</h1>
+
+<div class="row g-4">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-person me-2"></i>Bio data <span class="text-muted small">(read-only)</span></div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Full name</dt><dd class="col-sm-8">{{ landlord.full_name }}</dd>
+          <dt class="col-sm-4">Phone</dt><dd class="col-sm-8">{{ landlord.phone }}</dd>
+          <dt class="col-sm-4">Email</dt><dd class="col-sm-8">{{ landlord.email|default:"—" }}</dd>
+          <dt class="col-sm-4">ID number</dt><dd class="col-sm-8">{{ landlord.id_number|default:"—" }}</dd>
+          <dt class="col-sm-4">Bank</dt><dd class="col-sm-8">{{ landlord.bank_name|default:"—" }} {% if landlord.bank_branch %}<span class="text-muted">({{ landlord.bank_branch }})</span>{% endif %}</dd>
+          <dt class="col-sm-4">Account</dt><dd class="col-sm-8">{{ landlord.bank_account_number|default:"—" }}</dd>
+        </dl>
+        <p class="text-muted small mt-3 mb-0"><i class="bi bi-info-circle me-1"></i>To update bio data or banking details, contact Meili Property staff.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-sliders me-2"></i>Statement delivery</div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">Preferred statement channel</label>
+            <select name="preferred_statement_channel" class="form-select">
+              {% for v, label in landlord.StatementChannel.choices %}
+                <option value="{{ v }}" {% if landlord.preferred_statement_channel == v %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">WhatsApp number</label>
+            <input type="text" name="whatsapp_number" class="form-control" value="{{ landlord.whatsapp_number }}" placeholder="+2567...">
+            <div class="form-text">Leave blank to use your primary phone for WhatsApp.</div>
+          </div>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save preferences</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

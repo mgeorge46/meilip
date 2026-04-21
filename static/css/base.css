@@ -231,3 +231,134 @@ table.data tr:hover td { background: var(--neutral-50); }
 /* Coming soon */
 .coming-soon { text-align: center; padding: var(--space-16) var(--space-6); color: var(--text-muted); }
 .coming-soon h1 { color: var(--primary); }
+
+/* =========================================================================
+   Bootstrap 5 compat / uplift layer
+   Bootstrap classes (form-control, form-select, table, etc.) do the
+   heavy lifting; these rules harmonise spacing with our design tokens
+   and auto-style native inputs in legacy templates that don't yet add
+   the `.form-control` class explicitly.
+   ========================================================================= */
+
+/* Promote every native form input inside our main shell to Bootstrap look,
+   without requiring every legacy template to add .form-control/.form-select. */
+.app-main .form-field input:not([type=checkbox]):not([type=radio]):not([type=file]),
+.app-main .form-field textarea,
+.app-main .form-card input:not([type=checkbox]):not([type=radio]):not([type=file]),
+.app-main .form-card textarea {
+  display: block; width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.95rem; line-height: 1.5;
+  color: var(--text); background: var(--bg-surface);
+  border: 1px solid var(--border); border-radius: 0.5rem;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.app-main .form-field select,
+.app-main .form-card select {
+  display: block; width: 100%;
+  padding: 0.5rem 2rem 0.5rem 0.75rem;
+  font-size: 0.95rem; line-height: 1.5;
+  color: var(--text); background: var(--bg-surface) no-repeat right 0.75rem center / 12px 12px;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  border: 1px solid var(--border); border-radius: 0.5rem;
+  appearance: none;
+}
+.app-main .form-field input:focus,
+.app-main .form-field select:focus,
+.app-main .form-field textarea:focus,
+.app-main .form-card input:focus,
+.app-main .form-card select:focus,
+.app-main .form-card textarea:focus {
+  outline: 0; border-color: var(--primary);
+  box-shadow: 0 0 0 0.22rem var(--primary-100);
+}
+
+/* Paper-form grid: two-column layout on wide screens, single-column on mobile */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4) var(--space-6); margin-bottom: var(--space-5); }
+.form-grid.cols-1 { grid-template-columns: 1fr; }
+.form-grid .form-field { margin-bottom: 0; }
+.form-grid .form-field.span-2 { grid-column: span 2; }
+@media (max-width: 720px) { .form-grid .form-field.span-2 { grid-column: span 1; } }
+
+/* Section headers inside forms, breathing space between groups */
+.form-section { margin: var(--space-6) 0 var(--space-4); padding-bottom: var(--space-2); border-bottom: 1px solid var(--border); }
+.form-section h2 { font-size: var(--text-lg); margin: 0; color: var(--neutral-700); }
+.form-section .muted { margin-top: var(--space-1); font-size: var(--text-sm); }
+
+/* Card header + body */
+.card-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-6); background: var(--neutral-50); border-bottom: 1px solid var(--border); border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); margin: calc(var(--space-6) * -1) calc(var(--space-6) * -1) var(--space-5); }
+.card-header h2 { font-size: var(--text-lg); margin: 0; }
+
+/* Form card a bit taller breathing room */
+.form-card { padding: var(--space-6) var(--space-6) var(--space-5); }
+
+/* Form actions: right-aligned toolbar with gap */
+.form-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); padding-top: var(--space-4); border-top: 1px solid var(--border); margin-top: var(--space-5); }
+.form-actions .spacer { flex: 1; }
+
+/* Tables: stronger defaults, zebra, responsive wrapper */
+.table-responsive-wrap { width: 100%; overflow-x: auto; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); }
+table.data, table.data-table { margin: 0; }
+table.data thead th { position: sticky; top: 0; background: var(--neutral-50); z-index: 1; }
+table.data tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--neutral-50) 50%, transparent); }
+table.data tbody tr:hover td { background: var(--primary-50); }
+table.data td.num, table.data th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Bootstrap alert mapping for our messages pipeline */
+.alert { border-radius: 0.5rem; }
+
+/* Select2 with Bootstrap theme tweaks */
+.select2-container--bootstrap-5 .select2-selection { min-height: calc(1.5em + 1rem + 2px); border-radius: 0.5rem; border-color: var(--border); }
+
+/* Button harmonisation with Bootstrap */
+.btn { border-radius: 0.5rem; }
+.btn-primary { background-color: var(--primary); border-color: var(--primary); }
+.btn-primary:hover { background-color: var(--primary-700); border-color: var(--primary-700); }
+
+/* Promote any legacy bare <table> inside main to a modern card-table look
+   (keeps older accounting templates readable without rewriting each one). */
+.app-main table:not(.table):not(.data) {
+  width: 100%; background: var(--bg-surface);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  border-collapse: separate; border-spacing: 0; overflow: hidden;
+  margin-bottom: var(--space-4);
+}
+.app-main table:not(.table):not(.data) th,
+.app-main table:not(.table):not(.data) td {
+  padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border);
+  text-align: left; vertical-align: top;
+}
+.app-main table:not(.table):not(.data) thead th {
+  background: var(--neutral-50); font-weight: 600; font-size: 0.9rem; color: var(--neutral-700);
+}
+.app-main table:not(.table):not(.data) tbody tr:last-child td { border-bottom: 0; }
+.app-main table:not(.table):not(.data) tbody tr:hover td { background: var(--primary-50); }
+
+/* Page header: layout */
+.page-header { padding-bottom: var(--space-2); border-bottom: 1px solid var(--border); margin-bottom: var(--space-5); }
+.page-header h1 { font-size: 1.6rem; }
+.page-header.between { justify-content: space-between; }
+
+/* Number cells */
+.num { font-variant-numeric: tabular-nums; text-align: right; }
+
+/* ---------- Sub-navigation (used by accounting module pages) ---------- */
+.subnav { display: flex; flex-wrap: wrap; gap: var(--space-4); padding: var(--space-3) 0; margin-bottom: var(--space-4); border-bottom: 1px solid var(--border); }
+.subnav a { color: var(--text-muted); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); }
+.subnav a:hover { background: var(--neutral-100); color: var(--text); text-decoration: none; }
+
+/* ---------- Legacy utility classes used by accounting + billing templates ---------- */
+.muted { color: var(--text-muted); }
+.right { text-align: right; font-variant-numeric: tabular-nums; }
+form.inline { display: inline; }
+.badge.draft    { background: #fff3cd; color: #7a5a00; }
+.badge.posted   { background: #d1e7dd; color: #0a5132; }
+.badge.reversed { background: #f8d7da; color: #842029; }
+
+/* ---------- Sidebar collapse fix: keep the toggle reachable ----------
+   In collapsed mode the 32px brand logo + padding overflows the 64px rail
+   and `overflow:hidden` on .app-sidebar was clipping the toggle button,
+   leaving no way back. Center the toggle and hide the logo when collapsed. */
+.app-shell.collapsed .sidebar-brand { justify-content: center; padding: var(--space-3) 0; gap: 0; }
+.app-shell.collapsed .sidebar-brand img { display: none; }
+.app-shell.collapsed .sidebar-toggle { margin-left: 0; }

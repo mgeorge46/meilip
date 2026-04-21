@@ -1,0 +1,35 @@
+{% extends "portal/tenant/_base.html" %}
+
+{% block portal_title %}Invoices{% endblock %}
+
+{% block content %}
+<h1 class="page-title h3 mb-4">My Invoices</h1>
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0 align-middle">
+      <thead><tr>
+        <th>Number</th><th>House</th><th>Period</th><th>Issue</th><th>Due</th>
+        <th>Status</th><th class="num">Total</th><th class="num">Outstanding</th><th></th>
+      </tr></thead>
+      <tbody>
+      {% for inv in invoices %}
+        <tr>
+          <td>{{ inv.number|default:"—" }}</td>
+          <td>{{ inv.tenant_house.house }}</td>
+          <td>{{ inv.period_from }} – {{ inv.period_to }}</td>
+          <td>{{ inv.issue_date }}</td>
+          <td>{{ inv.due_date }}</td>
+          <td><span class="badge bg-secondary">{{ inv.get_status_display }}</span></td>
+          <td class="num">{{ inv.total|floatformat:0 }}</td>
+          <td class="num">{{ inv.outstanding|floatformat:0 }}</td>
+          <td><a class="btn btn-sm btn-outline-primary" href="{% url 'tenant:invoice-detail' inv.pk %}">View</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="9" class="text-muted text-center py-4">No invoices found.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% include "portal/_pagination.html" %}
+{% endblock %}

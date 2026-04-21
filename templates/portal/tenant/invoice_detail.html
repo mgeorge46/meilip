@@ -1,0 +1,49 @@
+{% extends "portal/tenant/_base.html" %}
+
+{% block portal_title %}Invoice {{ invoice.number|default:invoice.pk }}{% endblock %}
+
+{% block content %}
+<a href="{% url 'tenant:invoice-list' %}" class="btn btn-sm btn-outline-secondary mb-3"><i class="bi bi-arrow-left"></i> Back to invoices</a>
+
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between">
+    <span><i class="bi bi-receipt me-2"></i>{{ invoice.number|default:"Draft invoice" }}</span>
+    <span class="badge bg-secondary">{{ invoice.get_status_display }}</span>
+  </div>
+  <div class="card-body">
+    <dl class="row mb-0">
+      <dt class="col-sm-3">House</dt><dd class="col-sm-9">{{ invoice.tenant_house.house }}</dd>
+      <dt class="col-sm-3">Period</dt><dd class="col-sm-9">{{ invoice.period_from }} – {{ invoice.period_to }}</dd>
+      <dt class="col-sm-3">Issue date</dt><dd class="col-sm-9">{{ invoice.issue_date }}</dd>
+      <dt class="col-sm-3">Due date</dt><dd class="col-sm-9">{{ invoice.due_date }}</dd>
+    </dl>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header">Line items</div>
+  <div class="card-body p-0">
+    <table class="table mb-0">
+      <thead><tr><th>Description</th><th>Kind</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+      {% for line in invoice.lines.all %}
+        <tr>
+          <td>{{ line.description }}</td>
+          <td>{{ line.get_kind_display }}</td>
+          <td class="num">{{ line.amount|floatformat:0 }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3" class="text-muted text-center py-3">No line items.</td></tr>
+      {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr><th colspan="2" class="text-end">Subtotal</th><th class="num">{{ invoice.subtotal|floatformat:0 }}</th></tr>
+        <tr><th colspan="2" class="text-end">Tax</th><th class="num">{{ invoice.tax_total|floatformat:0 }}</th></tr>
+        <tr><th colspan="2" class="text-end">Total</th><th class="num">{{ invoice.total|floatformat:0 }}</th></tr>
+        <tr><th colspan="2" class="text-end">Paid</th><th class="num">{{ invoice.amount_paid|floatformat:0 }}</th></tr>
+        <tr class="table-active"><th colspan="2" class="text-end">Outstanding</th><th class="num">{{ invoice.outstanding|floatformat:0 }}</th></tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+{% endblock %}

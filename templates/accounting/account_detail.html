@@ -1,6 +1,6 @@
 {% extends "accounting/_base.html" %}
 {% block title %}{{ account.code }} — {{ account.name }}{% endblock %}
-{% block content %}
+{% block accounting_content %}
 <h1>{{ account.code }} — {{ account.name }}</h1>
 <p class="muted">
   {{ account.account_type.get_category_display }}

@@ -1,0 +1,34 @@
+{% extends "portal/landlord/_base.html" %}
+
+{% block portal_title %}Houses{% endblock %}
+
+{% block content %}
+<h1 class="page-title h3 mb-4">My Houses</h1>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table mb-0 align-middle">
+      <thead><tr>
+        <th>Estate</th><th>House</th><th>Rent</th><th>Occupancy</th><th>Current tenant(s)</th>
+      </tr></thead>
+      <tbody>
+      {% for h in houses %}
+        <tr>
+          <td>{{ h.estate.name }}</td>
+          <td>{{ h.name|default:h.house_number }}</td>
+          <td class="num">{{ h.periodic_rent|default_if_none:"—"|floatformat:0 }}</td>
+          <td><span class="badge bg-secondary">{{ h.get_occupancy_status_display }}</span></td>
+          <td>
+            {% for t in h.tenancies.all %}
+              {% if t.status == 'ACTIVE' %}<div>{{ t.tenant.full_name }}</div>{% endif %}
+            {% endfor %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="text-muted text-center py-4">No houses registered.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

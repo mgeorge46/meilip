@@ -1,19 +1,20 @@
 # Project State
 
 ## Current Phase
-Phase 4 — Billing Engine (complete)
+Phase 5 — Tenant & Landlord Portals + Mini Payroll + UI Overhaul (complete)
 
 ## Last Completed
-Phase 4 — Billing Engine (2026-04-21)
+Phase 5 — Portals, payroll fields, Bootstrap 5 UI overhaul (2026-04-21)
 
 ## Next Up
-Phase 5 — Payments ingress (webhook intake, MTN/Airtel/Bank reconciliation, notifications)
+Phase 6 — Payments ingress (webhook intake, MTN/Airtel/Bank reconciliation) + Notification adapter (email + WhatsApp) that replaces the stub delivery in `portal.tasks.deliver_landlord_statement`
 
 ## Completed Phases
 - [x] Phase 1 — Project Setup, Custom Auth & Core Models
 - [x] Phase 2 — Chart of Accounts & Accounting
 - [x] Phase 3 — Employee Dashboard: UI Layout, Design System, Entity CRUD
 - [x] Phase 4 — Billing Engine
+- [x] Phase 5 — Tenant & Landlord Portals + Mini Payroll + UI Overhaul
 
 ## Phase 1 Deliverables
 - `requirements.txt` (runtime), `requirements-dev.txt` (dev-only), `requirements.lock.txt` (frozen)
@@ -117,6 +118,25 @@ Phase 5 — Payments ingress (webhook intake, MTN/Airtel/Bank reconciliation, no
   - Refund routing — held-advance source posts balanced journal, REF- number
   - Overdue sweep — ISSUED past due_date → OVERDUE
 
+## Phase 5 Deliverables
+- **UI Overhaul (Bootstrap 5.3.3)** — CDN-loaded alongside `bootstrap-icons@1.11.3` + `select2-bootstrap-5-theme@1.3.0` in `templates/base.html`. `django-widget-tweaks` added to INSTALLED_APPS. `static/css/base.css` layer auto-promotes native `<input>`/`<select>`/`<table>` to Bootstrap-styled controls so legacy templates benefit without per-template rewrites. New utility classes: `.form-grid` (2-col paper-form layout), `.form-section`, `.page-header`, `.num`, `table-responsive-wrap`. Sidebar collapse-to-icons restored (logo hidden + toggle centred when `.app-shell.collapsed`).
+- **Form paper-form style** — `templates/core/_form.html` rewritten with widget_tweaks: every field rendered as a `.mb-3` cell inside `.form-grid`, textarea spans 2 cols, required-asterisk styling, form-actions footer with spacer + Cancel + Submit.
+- **Accounting base subnav** — `templates/accounting/_base.html` now extends `base.html` and exposes `{% block accounting_content %}`; all six accounting children switched from `{% block content %}` so they inherit sidebar/header/CSS and render correctly at `/accounting/accounts/` etc.
+- **Account CRUD** — fixed "cannot add chart of account" bug. New `AccountForm` (accounting/forms.py) with `parent` queryset filtered to non-postable active accounts; `AccountCreateView` + `AccountUpdateView` wired at `accounting:account-create` / `accounting:account-update`, rendered via `templates/accounting/account_form.html` (thin wrapper around `core/_form.html`). Gated to ADMIN/SUPER_ADMIN/FINANCE. List page given Bootstrap table + "New account" button + row-level edit icon.
+- **Mini Payroll (Employee fields)** — `core.Employee` extended with `job_title`, `employment_type` (FULL_TIME/PART_TIME/CONTRACT/INTERN), `hire_date`, `base_salary`, `allowance_transport`/`allowance_housing`/`allowance_airtime`/`allowance_other`, `paye_monthly`, `nssf_employee`, `nssf_employer`, `other_deduction`, `bank_name`/`bank_account_name`/`bank_account_number`/`bank_branch`, `tin`, `nssf_number`. Three properties: `gross_monthly`, `net_monthly`, `total_employer_cost`. Migration `core/0004_employee_allowance_airtime_and_more.py`. `EmployeeForm` exposes all new fields; `hire_date` uses HTML5 date picker.
+- **Payroll Chart of Accounts** — `accounting/migrations/0004_seed_payroll_accounts.py` seeds: **1600** `STAFF_ADVANCES_RECEIVABLE` (asset); **2500** parent *Payroll Payables* → **2510** `SALARIES_PAYABLE`, **2520** `PAYE_PAYABLE`, **2530** `NSSF_PAYABLE`, **2540** `OTHER_PAYROLL_PAYABLE`; **5400** parent *Payroll Expenses* → **5410** `SALARIES_EXPENSE`, **5420** `ALLOWANCES_EXPENSE`, **5430** `NSSF_EMPLOYER_EXPENSE`. System codes exported from `accounting/utils.py`. Two-pass create (accounts then parent wiring) to satisfy parent-FK on migration.
+- **Portal app** — new `portal` app mounted at `/tenant/` and `/landlord/`. `TenantPortalMixin` / `LandlordPortalMixin` enforce `request.user.tenant_profile` / `landlord_profile` (raises `PermissionDenied` otherwise). All querysets filter server-side — a tenant cannot enumerate another tenant's invoice by URL guessing, and a landlord cannot see another landlord's houses/statements. Dedicated `templates/portal/_base.html` (public-facing navbar, NO employee sidebar) + `tenant/_base.html` + `landlord/_base.html`.
+- **Tenant portal** — Dashboard (tenancies + open balances + recent invoices), Invoice list + detail (line items + allocations), Payment history, Receipts, Profile (bio data read-only; `preferred_notification` + `preferred_receipt` editable only).
+- **Landlord portal** — Dashboard (portfolio summary + recent statements), House list (estate-landlord + house-override landlord unioned via `portal.services.models_or`), Statement list, Statement request (6-month window with client + server enforcement), Statement download (FileResponse, PDF inline), Profile (bio + banking read-only; `preferred_statement_channel` + `whatsapp_number` editable only).
+- **Landlord Statement PDF** — `portal/services.build_statement_context` + `render_statement_pdf` using ReportLab Platypus. Layout matches reference PDFs (MARY NANTAYIRO Jan 2026 Report, Teddy): MEILI PROPERTY SOLUTIONS title, landlord/report-date/period header, houses table grouped by estate with SPAN estate headers, DEFAULTERS section (arrears from periods before window still outstanding with any in-window payments), Summary + LandLord Payments side-by-side. Commission computed only for managed landlords (`is_meili_owned=False`). **Held-advance accounts are NEVER touched** — the statement reads `Invoice.total` / `Invoice.amount_paid` directly; `TENANT_ADVANCE_HELD_MANAGED` / `_MEILI` are fiduciary per SPEC §20 and absent from every query and render path.
+- **Statement persistence** — `LandlordStatement` model (status PENDING/GENERATED/DELIVERED/FAILED, channel EMAIL/WHATSAPP/BOTH/MANUAL_DOWNLOAD, FK to Landlord, unique on (landlord, period_start, period_end), cached totals, FileField stored under `media/landlord_statements/YYYY/MM/`). Admin registration with search/filter/autocomplete. Migration `portal/0001_initial.py`.
+- **6-month window cap** — `portal.services.enforce_window` raises `StatementWindowError` if `period_end - period_start > 6 months` or if end < start. Enforced at every entry point: `build_statement_context`, view POST, Celery task.
+- **Celery tasks** — `portal.tasks.generate_landlord_statement` (bind=True, retries=3) builds context + renders PDF + persists row + chains `deliver_landlord_statement`. `deliver_landlord_statement` reads `landlord.preferred_statement_channel` and logs to `[stub-email]` / `[stub-whatsapp]` until Phase 6 notification adapter lands, then marks row DELIVERED with channel + notes. Landlords with `NONE` channel get `MANUAL_DOWNLOAD` status.
+- **Monthly beat schedule** — `portal.tasks.schedule_monthly_statements` seeded as a `django_celery_beat.PeriodicTask` via `portal/0002_seed_beat_schedule.py` — crontab `0 6 1 * *` in `Africa/Kampala`. Dispatches per-landlord generation jobs for the previous calendar month. Landlords with `preferred_statement_channel=NONE` are skipped.
+- **Landlord model additions** — `preferred_statement_channel` (EMAIL/WHATSAPP/BOTH/NONE, default EMAIL) + `whatsapp_number` (E.164 or blank — falls back to `phone`). `LandlordForm` exposes both.
+- **Tests (portal)** — `portal/tests.py`: tenant sees only own invoices, tenant cannot open another tenant's invoice detail (404), non-tenant user blocked (403), landlord sees only own houses, non-landlord blocked, 6-month window accepted, 7-month rejected, reversed window rejected, `MAX_STATEMENT_MONTHS == 6`, statement context excludes other landlords' invoices, payroll COA seeded + active + postable. **12 tests passing; 91 tests total across the suite.**
+- **URL mounts** — `meili_property/urls.py` → `path("tenant/", include(("portal.tenant_urls", "tenant"), namespace="tenant"))`, `path("landlord/", include(("portal.landlord_urls", "landlord"), namespace="landlord"))`.
+
 ## Decisions Log
 - 2026-04-17 — Python 3.14.3 in `meili` venv (exceeds 3.12 minimum; Django 6.0.4 compatible).
 - 2026-04-17 — Added `SUPER_ADMIN` role in addition to the 7 roles in SPEC §2A.1 because §16.9 matrix requires a distinct Super Admin tier (draft deletion). `create_initial_superuser` assigns both `SUPER_ADMIN` and `ADMIN`.
@@ -142,6 +162,14 @@ Phase 5 — Payments ingress (webhook intake, MTN/Airtel/Bank reconciliation, no
 - 2026-04-21 — Voids rewind `PaymentAllocation` rows back to held-advance (Dr AR, Cr Held Advance for the invoice's landlord routing) — not direct refunds. Separates void (accrual reversal) from refund (cash movement), which then requires its own maker-checker cycle.
 - 2026-04-21 — `services.py` kept as a single cohesive module — commission/allocation/void/credit/refund split across files only if it grows past ~600 LOC. Premature abstraction is worse than one readable file.
 - 2026-04-21 — `generate_invoices` beat schedule is **hourly** (not daily) so short cycles (HOUR/DAY) get picked up in time. `mark_overdue` runs once at 01:00 Africa/Kampala.
+- 2026-04-21 — Bootstrap 5 adopted via CDN as the UI foundation over hand-rolling further CSS. Integrated as a *promotion layer* in `base.css` that upgrades native controls and legacy tables, so existing templates benefit without per-template rewrites. `django-widget-tweaks` added rather than crispy-forms: less magic, no extra template pack.
+- 2026-04-21 — Portal is a **separate user surface** with its own `_base.html` (no employee sidebar, Bootstrap navbar only). Tenants/landlords see only portal nav items; staff navigate via the existing `app-shell` layout. This keeps role-UI boundaries obvious and prevents tenants from seeing employee menus even accidentally.
+- 2026-04-21 — Statement **held-advance exclusion** enforced at the query layer, not the template layer. `build_statement_context` reads `Invoice.total` / `Invoice.amount_paid` only. The two held-advance liability accounts (`TENANT_ADVANCE_HELD_MANAGED`, `TENANT_ADVANCE_HELD_MEILI`) are never referenced in context building or PDF rendering. This makes accidental leakage impossible even if a future template change adds a "total advances" row.
+- 2026-04-21 — Statement window capped at **6 months**, enforced in three places (view POST, service `enforce_window`, Celery task via `enforce_window` inside `build_statement_context`). Max-month constant exported from `portal.services.MAX_STATEMENT_MONTHS` so tests and UI hints stay in sync.
+- 2026-04-21 — `generate_landlord_statement` + `deliver_landlord_statement` are **two chained tasks**, not one. Generation is idempotent (update_or_create on unique (landlord, period_start, period_end)); delivery is a separate retryable boundary and will be replaced wholesale in Phase 6 with real Email/WhatsApp adapters without touching generation.
+- 2026-04-21 — Monthly landlord-statement beat job seeded via **migration** (`portal/0002_seed_beat_schedule.py`) rather than admin-managed. Keeps production parity automatic — no "forgot to enable the cron" incidents after a fresh deploy. The crontab is `django_celery_beat.CrontabSchedule` with `timezone="Africa/Kampala"`, so local DST-free 06:00 is honoured regardless of server TZ.
+- 2026-04-21 — Mini-payroll implemented as **Employee model fields** (not a separate Payroll app). The COA for payroll postings is seeded now so future payroll runs have the accounts ready; payroll-run workflow + journal posting deferred to a later phase. Avoids premature abstraction while exposing the bank/tax/NSSF data the finance team needs immediately.
+- 2026-04-21 — Landlord `preferred_statement_channel=NONE` opts the landlord out of auto-send but still allows manual-download through the portal. Safer default than disabling generation entirely — landlords can always self-serve.
 
 ## Phase 3 Deliverables
 - `dashboard` app — home page, global search (4-table grouped: tenants/houses/estates/users), coming-soon placeholder, custom 403/404/500 error pages wired via `handler403`/`handler404`/`handler500` in the project `urls.py`

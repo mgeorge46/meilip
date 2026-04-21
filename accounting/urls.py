@@ -6,7 +6,9 @@ app_name = "accounting"
 
 urlpatterns = [
     path("accounts/", views.AccountListView.as_view(), name="account-list"),
+    path("accounts/new/", views.AccountCreateView.as_view(), name="account-create"),
     path("accounts/<int:pk>/", views.AccountDetailView.as_view(), name="account-detail"),
+    path("accounts/<int:pk>/edit/", views.AccountUpdateView.as_view(), name="account-update"),
     path("ledger/", views.GeneralLedgerView.as_view(), name="general-ledger"),
     path("journals/new/", views.journal_entry_create, name="journal-create"),
     path("journals/<int:pk>/", views.journal_entry_detail, name="journal-detail"),

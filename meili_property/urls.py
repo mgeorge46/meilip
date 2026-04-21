@@ -10,6 +10,8 @@ urlpatterns = [
     path("accounting/", include("accounting.urls")),
     path("core/", include("core.urls")),
     path("billing/", include("billing.urls")),
+    path("tenant/", include(("portal.tenant_urls", "tenant"), namespace="tenant")),
+    path("landlord/", include(("portal.landlord_urls", "landlord"), namespace="landlord")),
     path("", include("dashboard.urls")),
 ]
 

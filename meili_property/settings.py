@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "simple_history",
     "django_celery_results",
     "django_celery_beat",
+    "widget_tweaks",
     "axes",
     # Local
     "accounts.apps.AccountsConfig",
@@ -41,6 +42,7 @@ INSTALLED_APPS = [
     "accounting.apps.AccountingConfig",
     "dashboard.apps.DashboardConfig",
     "billing.apps.BillingConfig",
+    "portal.apps.PortalConfig",
 ]
 
 MIDDLEWARE = [

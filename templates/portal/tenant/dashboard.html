@@ -1,0 +1,79 @@
+{% extends "portal/tenant/_base.html" %}
+
+{% block portal_title %}Dashboard{% endblock %}
+
+{% block content %}
+<h1 class="page-title h3 mb-4">Welcome, {{ tenant.full_name }}</h1>
+
+<div class="row g-4">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-house-door me-2"></i>My Tenancies</div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead><tr><th>House</th><th>Status</th><th>Move-in</th></tr></thead>
+          <tbody>
+          {% for t in tenancies %}
+            <tr>
+              <td>{{ t.house }}</td>
+              <td><span class="badge bg-secondary">{{ t.get_status_display }}</span></td>
+              <td>{{ t.move_in_date|default:"—" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3" class="text-muted text-center py-3">No tenancies recorded.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-exclamation-circle me-2"></i>Open Balances</span>
+        <a href="{% url 'tenant:invoice-list' %}" class="btn btn-sm btn-outline-primary">All invoices</a>
+      </div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead><tr><th>Invoice</th><th>Due</th><th class="num">Outstanding</th></tr></thead>
+          <tbody>
+          {% for inv in open_invoices %}
+            <tr>
+              <td><a href="{% url 'tenant:invoice-detail' inv.pk %}">{{ inv.number|default:"—" }}</a></td>
+              <td>{{ inv.due_date }}</td>
+              <td class="num">{{ inv.outstanding|floatformat:0 }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3" class="text-muted text-center py-3">No outstanding invoices.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-4">
+  <div class="card-header"><i class="bi bi-receipt me-2"></i>Recent Invoices</div>
+  <div class="card-body p-0">
+    <table class="table mb-0">
+      <thead><tr><th>Number</th><th>Period</th><th>Status</th><th class="num">Total</th><th class="num">Outstanding</th><th></th></tr></thead>
+      <tbody>
+      {% for inv in invoices %}
+        <tr>
+          <td>{{ inv.number|default:"—" }}</td>
+          <td>{{ inv.period_from }} – {{ inv.period_to }}</td>
+          <td><span class="badge bg-secondary">{{ inv.get_status_display }}</span></td>
+          <td class="num">{{ inv.total|floatformat:0 }}</td>
+          <td class="num">{{ inv.outstanding|floatformat:0 }}</td>
+          <td><a class="btn btn-sm btn-outline-primary" href="{% url 'tenant:invoice-detail' inv.pk %}">Open</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="text-muted text-center py-3">No invoices yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

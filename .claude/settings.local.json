@@ -28,7 +28,17 @@
       "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py migrate)",
       "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py test billing)",
       "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py makemigrations accounting)",
-      "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py test)"
+      "Bash(C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py test)",
+      "Bash(py manage.py test)",
+      "Bash(python manage.py makemigrations portal)",
+      "Bash(where py *)",
+      "Bash(py -c \"import sys; print\\(sys.prefix\\)\")",
+      "Bash(\"/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py makemigrations portal)",
+      "Bash(\"/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py check)",
+      "Bash(\"/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py migrate)",
+      "Bash(\"/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py test portal -v 2)",
+      "Bash(\"/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py test portal)",
+      "Bash(\"/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py test)"
     ]
   }
 }

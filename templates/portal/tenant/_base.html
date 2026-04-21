@@ -1,0 +1,12 @@
+{% extends "portal/_base.html" %}
+
+{% block portal_name %}Tenant Portal{% endblock %}
+{% block home_url %}{% url 'tenant:dashboard' %}{% endblock %}
+
+{% block nav_items %}
+  <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'tenant:dashboard' %}"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
+  <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name|slice:':7' == 'invoice' %}active{% endif %}" href="{% url 'tenant:invoice-list' %}"><i class="bi bi-receipt me-1"></i>Invoices</a></li>
+  <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'payment-list' %}active{% endif %}" href="{% url 'tenant:payment-list' %}"><i class="bi bi-cash-coin me-1"></i>Payments</a></li>
+  <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'receipt-list' %}active{% endif %}" href="{% url 'tenant:receipt-list' %}"><i class="bi bi-file-earmark-check me-1"></i>Receipts</a></li>
+  <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'profile' %}active{% endif %}" href="{% url 'tenant:profile' %}"><i class="bi bi-person-gear me-1"></i>Profile</a></li>
+{% endblock %}

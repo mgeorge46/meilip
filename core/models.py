@@ -180,6 +180,12 @@ class Landlord(CoreBaseModel):
         ACTIVE = "ACTIVE", "Active"
         INACTIVE = "INACTIVE", "Inactive"
 
+    class StatementChannel(models.TextChoices):
+        EMAIL = "EMAIL", "Email"
+        WHATSAPP = "WHATSAPP", "WhatsApp"
+        BOTH = "BOTH", "Both"
+        NONE = "NONE", "Do not auto-send"
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -200,6 +206,17 @@ class Landlord(CoreBaseModel):
     bank_account_number = models.CharField(max_length=64, blank=True)
     bank_branch = models.CharField(max_length=120, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
+    preferred_statement_channel = models.CharField(
+        max_length=16,
+        choices=StatementChannel.choices,
+        default=StatementChannel.EMAIL,
+        help_text="How to auto-deliver the monthly landlord statement PDF.",
+    )
+    whatsapp_number = models.CharField(
+        max_length=16,
+        blank=True,
+        help_text="WhatsApp destination in E.164 if different from `phone`.",
+    )
     notes = models.TextField(blank=True)
 
     history = HistoricalRecords()
@@ -330,6 +347,12 @@ class House(CoreBaseModel, SettingsMixin):
 # Employee
 # ---------------------------------------------------------------------------
 class Employee(CoreBaseModel):
+    class EmploymentType(models.TextChoices):
+        FULL_TIME = "FULL_TIME", "Full-time"
+        PART_TIME = "PART_TIME", "Part-time"
+        CONTRACT = "CONTRACT", "Contract"
+        INTERN = "INTERN", "Intern"
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="employee_profile"
     )
@@ -349,6 +372,39 @@ class Employee(CoreBaseModel):
     )
     is_active = models.BooleanField(default=True)
 
+    # --- Payroll / benefits (mini-payroll per SPEC §2A.5) --------------------
+    job_title = models.CharField(max_length=120, blank=True)
+    employment_type = models.CharField(
+        max_length=16, choices=EmploymentType.choices, default=EmploymentType.FULL_TIME
+    )
+    hire_date = models.DateField(null=True, blank=True)
+    base_salary = UGXField(
+        default=0, help_text="Gross monthly salary (UGX, whole shillings)."
+    )
+    allowance_transport = UGXField(default=0, help_text="Monthly transport allowance.")
+    allowance_housing = UGXField(default=0, help_text="Monthly housing allowance.")
+    allowance_airtime = UGXField(default=0, help_text="Monthly airtime allowance.")
+    allowance_other = UGXField(default=0, help_text="Other monthly allowances.")
+    paye_monthly = UGXField(
+        default=0,
+        help_text="PAYE withheld monthly (URA). Computed and snapshotted by payroll run.",
+    )
+    nssf_employee = UGXField(
+        default=0, help_text="NSSF employee contribution (5% of gross)."
+    )
+    nssf_employer = UGXField(
+        default=0, help_text="NSSF employer contribution (10% of gross)."
+    )
+    other_deduction = UGXField(default=0, help_text="Other monthly deductions.")
+    bank_name = models.CharField(max_length=120, blank=True)
+    bank_account_name = models.CharField(max_length=120, blank=True)
+    bank_account_number = models.CharField(max_length=64, blank=True)
+    bank_branch = models.CharField(max_length=120, blank=True)
+    tin = models.CharField(
+        max_length=32, blank=True, help_text="URA Tax Identification Number."
+    )
+    nssf_number = models.CharField(max_length=32, blank=True)
+
     history = HistoricalRecords()
 
     class Meta:
@@ -356,6 +412,29 @@ class Employee(CoreBaseModel):
 
     def __str__(self):
         return self.full_name
+
+    @property
+    def gross_monthly(self):
+        return (
+            self.base_salary
+            + self.allowance_transport
+            + self.allowance_housing
+            + self.allowance_airtime
+            + self.allowance_other
+        )
+
+    @property
+    def net_monthly(self):
+        return (
+            self.gross_monthly
+            - self.paye_monthly
+            - self.nssf_employee
+            - self.other_deduction
+        )
+
+    @property
+    def total_employer_cost(self):
+        return self.gross_monthly + self.nssf_employer
 
 
 # ---------------------------------------------------------------------------

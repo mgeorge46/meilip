@@ -1,0 +1,32 @@
+{% extends "portal/tenant/_base.html" %}
+
+{% block portal_title %}Payments{% endblock %}
+
+{% block content %}
+<h1 class="page-title h3 mb-4">Payment History</h1>
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table mb-0 align-middle">
+      <thead><tr>
+        <th>Number</th><th>Received</th><th>Method</th><th>Reference</th>
+        <th>Status</th><th class="num">Amount</th>
+      </tr></thead>
+      <tbody>
+      {% for p in payments %}
+        <tr>
+          <td>{{ p.number|default:"—" }}</td>
+          <td>{{ p.received_at|date:"Y-m-d H:i" }}</td>
+          <td>{{ p.get_method_display }}</td>
+          <td>{{ p.reference_number|default:"—" }}</td>
+          <td><span class="badge bg-secondary">{{ p.get_approval_status_display }}</span></td>
+          <td class="num">{{ p.amount|floatformat:0 }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="text-muted text-center py-4">No payments recorded.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% include "portal/_pagination.html" %}
+{% endblock %}

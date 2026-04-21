@@ -15,7 +15,7 @@ from django.views.generic import CreateView, DetailView, UpdateView, View
 from accounts.permissions import RoleRequiredMixin, role_required
 from core.mixins import PaginatedListView
 
-from .forms import BankAccountForm, JournalEntryForm, JournalEntryLineFormSet
+from .forms import AccountForm, BankAccountForm, JournalEntryForm, JournalEntryLineFormSet
 from .models import Account, BankAccount, JournalEntry, JournalEntryLine
 from .utils import SYS_COMMISSION_INCOME, get_account
 
@@ -41,6 +41,37 @@ class AccountListView(RoleRequiredMixin, PaginatedListView):
         if category:
             qs = qs.filter(account_type__category=category)
         return qs
+
+
+class AccountCreateView(RoleRequiredMixin, CreateView):
+    required_roles = ("ADMIN", "SUPER_ADMIN", "FINANCE")
+    model = Account
+    form_class = AccountForm
+    template_name = "accounting/account_form.html"
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        form.instance.updated_by = self.request.user
+        messages.success(self.request, f"Account {form.instance.code} created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("accounting:account-detail", args=[self.object.pk])
+
+
+class AccountUpdateView(RoleRequiredMixin, UpdateView):
+    required_roles = ("ADMIN", "SUPER_ADMIN", "FINANCE")
+    model = Account
+    form_class = AccountForm
+    template_name = "accounting/account_form.html"
+
+    def form_valid(self, form):
+        form.instance.updated_by = self.request.user
+        messages.success(self.request, f"Account {form.instance.code} updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("accounting:account-detail", args=[self.object.pk])
 
 
 class AccountDetailView(RoleRequiredMixin, DetailView):
