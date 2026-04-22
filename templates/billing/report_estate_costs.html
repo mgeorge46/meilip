@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Estate Cost Rollup · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>Estate Cost Rollup</h1>
+    <p class="muted">Meili-borne ad-hoc charges per estate — repairs split from other costs.</p>
+  </div>
+</section>
+
+<div class="card">
+  <table class="data">
+    <thead>
+      <tr>
+        <th>Estate</th>
+        <th class="num">#Charges</th>
+        <th class="num">Repairs (UGX)</th>
+        <th class="num">Other (UGX)</th>
+        <th class="num">Total (UGX)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.estate }}</td>
+        <td class="num">{{ r.count }}</td>
+        <td class="num">{{ r.repairs }}</td>
+        <td class="num">{{ r.other }}</td>
+        <td class="num"><strong>{{ r.total }}</strong></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="muted">No Meili-borne ad-hoc costs recorded.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

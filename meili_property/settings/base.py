@@ -1,14 +1,14 @@
-"""
-Django settings for meili_property project.
-Django 6.0 / Python 3.12+. Windows dev, Linux prod.
-"""
+"""Base Django settings shared across dev and prod.
 
+Keep this file environment-agnostic: no DEBUG defaults, no Sentry, no
+security-header toggles. Those live in dev.py / prod.py.
+"""
 import sys
 from pathlib import Path
 
 import environ
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 env = environ.Env(
     DEBUG=(bool, False),
@@ -17,8 +17,6 @@ env = environ.Env(
 environ.Env.read_env(BASE_DIR / ".env")
 
 SECRET_KEY = env("SECRET_KEY", default="dev-insecure-change-me")
-DEBUG = env("DEBUG")
-ALLOWED_HOSTS = env("ALLOWED_HOSTS")
 
 # ---------------------------------------------------------------------------
 # Applications
@@ -30,12 +28,15 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.humanize",
     # Third-party
     "simple_history",
     "django_celery_results",
     "django_celery_beat",
     "widget_tweaks",
     "axes",
+    "rest_framework",
+    "drf_spectacular",
     # Local
     "accounts.apps.AccountsConfig",
     "core.apps.CoreConfig",
@@ -43,6 +44,9 @@ INSTALLED_APPS = [
     "dashboard.apps.DashboardConfig",
     "billing.apps.BillingConfig",
     "portal.apps.PortalConfig",
+    "scoring.apps.ScoringConfig",
+    "api.apps.ApiConfig",
+    "notifications.apps.NotificationsConfig",
 ]
 
 MIDDLEWARE = [
@@ -56,6 +60,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "simple_history.middleware.HistoryRequestMiddleware",
     "axes.middleware.AxesMiddleware",
+    "accounts.middleware.AuditRequestMiddleware",
 ]
 
 ROOT_URLCONF = "meili_property.urls"
@@ -95,7 +100,6 @@ DATABASES["default"]["ENGINE"] = "django.db.backends.postgresql"
 # ---------------------------------------------------------------------------
 AUTH_USER_MODEL = "accounts.User"
 
-# Argon2 first (enterprise-grade)
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.Argon2PasswordHasher",
     "django.contrib.auth.hashers.PBKDF2PasswordHasher",
@@ -122,14 +126,13 @@ LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/accounts/login/"
 
-# django-axes — lockout after 5 failed attempts in 15 min
 AXES_FAILURE_LIMIT = 5
-AXES_COOLOFF_TIME = 0.25  # hours
+AXES_COOLOFF_TIME = 0.25
 AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
 AXES_RESET_ON_SUCCESS = True
 
 # ---------------------------------------------------------------------------
-# Internationalization — store UTC, display Africa/Kampala
+# Internationalization
 # ---------------------------------------------------------------------------
 LANGUAGE_CODE = env("LANGUAGE_CODE", default="en-us")
 TIME_ZONE = env("TIME_ZONE", default="Africa/Kampala")
@@ -147,13 +150,6 @@ STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
-
-# Under tests and in DEBUG, bypass the manifest requirement (collectstatic
-# hasn't run). Production keeps the hashed/compressed manifest storage.
-if DEBUG or "test" in sys.argv:
-    STORAGES["staticfiles"]["BACKEND"] = (
-        "django.contrib.staticfiles.storage.StaticFilesStorage"
-    )
 
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
@@ -175,17 +171,76 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_ACKS_LATE = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 
-# Pagination defaults (see CLAUDE.md — via PaginatedListView)
+# Pagination
 PAGINATION_PAGE_SIZES = [20, 50, 100, 150]
 PAGINATION_DEFAULT = 50
 
-# Display currency defaults
 DEFAULT_CURRENCY_CODE = "UGX"
 
-# Simple-history — attribute user automatically via middleware
 SIMPLE_HISTORY_REVERT_DISABLED = False
 
-# Session
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
+
+# ---------------------------------------------------------------------------
+# DRF
+# ---------------------------------------------------------------------------
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "api.authentication.ApiKeyAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+    ],
+    "DEFAULT_PARSER_CLASSES": [
+        "rest_framework.parsers.JSONParser",
+    ],
+    "UNAUTHENTICATED_USER": None,
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Meili Property External API",
+    "DESCRIPTION": "Inbound payment webhook + provider integrations.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+}
+
+RATELIMIT_VIEW = "api.views.PaymentWebhookView"
+
+# ---------------------------------------------------------------------------
+# Notifications
+# ---------------------------------------------------------------------------
+NOTIFICATION_PROVIDERS = env.json(
+    "NOTIFICATION_PROVIDERS",
+    default={"SMS": "console", "WHATSAPP": "console", "EMAIL": "console"},
+)
+NOTIFICATION_HTTP_TIMEOUT = env.float("NOTIFICATION_HTTP_TIMEOUT", default=15.0)
+
+AT_API_KEY = env("AT_API_KEY", default="")
+AT_USERNAME = env("AT_USERNAME", default="sandbox")
+AT_SENDER_ID = env("AT_SENDER_ID", default="")
+AT_WHATSAPP_CHANNEL = env("AT_WHATSAPP_CHANNEL", default="")
+
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend",
+)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@meili.test")
+
+# ---------------------------------------------------------------------------
+# Flower
+# ---------------------------------------------------------------------------
+FLOWER_BASIC_AUTH = env("FLOWER_BASIC_AUTH", default="admin:heaven2870_flw")
+FLOWER_ADMIN_REQUIRED_ROLES = ("ADMIN", "SUPER_ADMIN")
+
+# Placeholder — overridden in dev/prod
+DEBUG = False
+ALLOWED_HOSTS = env("ALLOWED_HOSTS")
+
+# In tests, bypass the manifest requirement. Keeps dev + test paths simple.
+if "test" in sys.argv or "pytest" in sys.argv[0]:
+    STORAGES["staticfiles"]["BACKEND"] = (
+        "django.contrib.staticfiles.storage.StaticFilesStorage"
+    )

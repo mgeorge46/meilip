@@ -6,6 +6,7 @@ from .models import (
     AdHocCharge,
     CommissionPosting,
     CreditNote,
+    ExitSettlement,
     Invoice,
     InvoiceLine,
     InvoiceTaxLine,
@@ -14,6 +15,8 @@ from .models import (
     PaymentAllocation,
     Receipt,
     Refund,
+    SecurityDeposit,
+    SecurityDepositMovement,
 )
 from .sequences import NumberSequence
 
@@ -58,3 +61,34 @@ admin.site.register(PaymentAllocation)
 admin.site.register(Receipt)
 admin.site.register(CommissionPosting)
 admin.site.register(NumberSequence)
+
+
+@admin.register(SecurityDeposit)
+class SecurityDepositAdmin(admin.ModelAdmin):
+    list_display = (
+        "tenant_house", "amount_held", "amount_applied",
+        "amount_refunded", "status",
+    )
+    list_filter = ("status",)
+    readonly_fields = ("amount_held", "amount_applied", "amount_refunded", "status")
+
+
+@admin.register(SecurityDepositMovement)
+class SecurityDepositMovementAdmin(admin.ModelAdmin):
+    list_display = ("deposit", "kind", "amount", "occurred_at")
+    list_filter = ("kind",)
+
+
+@admin.register(ExitSettlement)
+class ExitSettlementAdmin(admin.ModelAdmin):
+    list_display = (
+        "tenant_house", "status", "approval_status",
+        "final_refund_amount", "landlord_shortfall", "executed_at",
+    )
+    list_filter = ("status", "approval_status")
+    readonly_fields = (
+        "held_managed_at_start", "held_meili_at_start", "deposit_at_start",
+        "outstanding_at_start", "damages_total", "plan",
+        "final_refund_amount", "landlord_shortfall",
+        "executed_at", "executed_by",
+    )

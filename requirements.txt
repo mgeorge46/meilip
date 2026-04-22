@@ -37,3 +37,10 @@ openpyxl
 
 # Security
 bleach
+
+# DRF (external API — payment webhook + notifications send)
+djangorestframework
+drf-spectacular
+
+# Observability
+sentry-sdk[django]

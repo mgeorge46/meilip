@@ -1,9 +1,25 @@
 {% extends "base.html" %}
-{% block title %}Coming Soon · Meili Property{% endblock %}
+{% block title %}{{ feature }} · Meili Property{% endblock %}
 {% block content %}
 <section class="coming-soon">
   <h1>{{ feature }}</h1>
-  <p class="muted">This feature is on the roadmap and will be available in an upcoming release.</p>
+  <p class="lede">This feature is on the roadmap and will be available in an upcoming release.</p>
+  {% if description %}
+    <p>{{ description }}</p>
+  {% endif %}
+
+  {% if other_roadmap %}
+    <h2>Other features on the roadmap</h2>
+    <ul class="roadmap-list">
+      {% for slug, item in other_roadmap %}
+        <li>
+          <div class="feature-name">{{ item.0 }}</div>
+          <div class="feature-desc">{{ item.1 }}</div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
   <p><a class="btn ghost" href="{% url 'dashboard:home' %}">Back to Dashboard</a></p>
 </section>
 {% endblock %}

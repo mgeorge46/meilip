@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Revenue Summary · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>Revenue Summary</h1>
+    <p class="muted">Invoiced revenue by kind — rent, utilities, ad-hoc (12 rolling months).</p>
+  </div>
+</section>
+
+<div class="card">
+  <table class="data">
+    <thead>
+      <tr>
+        <th>Period</th>
+        <th class="num">Rent (UGX)</th>
+        <th class="num">Utilities (UGX)</th>
+        <th class="num">Ad-hoc (UGX)</th>
+        <th class="num">Total (UGX)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.period }}</td>
+        <td class="num">{{ r.rent }}</td>
+        <td class="num">{{ r.utilities }}</td>
+        <td class="num">{{ r.adhoc }}</td>
+        <td class="num"><strong>{{ r.total }}</strong></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="muted">No invoiced revenue.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

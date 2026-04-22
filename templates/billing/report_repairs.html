@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Repairs per House · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>Repairs per House</h1>
+    <p class="muted">Approved ad-hoc charges tagged "repair", aggregated per house.</p>
+  </div>
+</section>
+
+<div class="card">
+  <table class="data">
+    <thead>
+      <tr>
+        <th>Estate</th>
+        <th>House</th>
+        <th class="num">#Repairs</th>
+        <th class="num">Total (UGX)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.tenant_house__house__estate__name|default:"—" }}</td>
+        <td>{{ r.tenant_house__house__house_number|default:"—" }}</td>
+        <td class="num">{{ r.count }}</td>
+        <td class="num">{{ r.total }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="muted">No repair charges recorded.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

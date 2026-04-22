@@ -3,7 +3,7 @@ notes, refunds; plus approvals queue. All guarded by RoleRequiredMixin
 (SPEC §16.9)."""
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import transaction
+from django.db import models, transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
@@ -41,6 +41,12 @@ from .services import (
     execute_refund,
     execute_void,
 )
+from .exit_services import (
+    build_settlement_plan,
+    compute_exit_settlement,
+    execute_exit_settlement,
+)
+from .models import ExitSettlement
 
 
 # Role groups per SPEC §16.9
@@ -382,18 +388,85 @@ class ReceiptDetailView(RoleRequiredMixin, DetailView):
 # ---------------------------------------------------------------------------
 class AdvancePaymentsReportView(RoleRequiredMixin, PaginatedListView):
     """Employee-facing report: shows held advances for both accounts with
-    routing badges (Managed vs Meili-Owned)."""
+    routing badges (Managed vs Meili-Owned).
+
+    Filters (GET params):
+      - tenant     : Tenant pk
+      - house      : House pk
+      - estate     : Estate pk
+      - landlord   : Landlord pk
+      - ownership  : "MANAGED" | "MEILI"
+
+    Each row is tagged ``stale_badge=True`` when the hold has been sitting for
+    at least two full billing periods (≥ 60 days) — SPEC §22 Advance Report.
+    """
     required_roles = FINANCE_ROLES
     template_name = "billing/report_advances.html"
     context_object_name = "rows"
 
     def get_queryset(self):
         from .models import PaymentAllocation
-        return (
+        qs = (
             PaymentAllocation.objects.filter(is_advance_hold=True, applied_at__isnull=True)
             .select_related("payment", "payment__tenant")
             .order_by("-allocated_at")
         )
+        g = self.request.GET
+        if g.get("tenant"):
+            qs = qs.filter(payment__tenant_id=g["tenant"])
+        if g.get("house"):
+            qs = qs.filter(payment__tenant__tenancies__house_id=g["house"]).distinct()
+        if g.get("estate"):
+            qs = qs.filter(
+                payment__tenant__tenancies__house__estate_id=g["estate"]
+            ).distinct()
+        if g.get("landlord"):
+            lid = g["landlord"]
+            qs = qs.filter(
+                models.Q(payment__tenant__tenancies__house__landlord_id=lid)
+                | models.Q(payment__tenant__tenancies__house__estate__landlord_id=lid)
+            ).distinct()
+        ownership = g.get("ownership")
+        if ownership in {"MANAGED", "MEILI"}:
+            want_meili = ownership == "MEILI"
+            qs = qs.filter(
+                models.Q(
+                    payment__tenant__tenancies__house__landlord__is_meili_owned=want_meili
+                )
+                | models.Q(
+                    payment__tenant__tenancies__house__estate__landlord__is_meili_owned=want_meili
+                )
+            ).distinct()
+        return qs
+
+    def get_context_data(self, **kwargs):
+        from datetime import timedelta
+        from core.models import Estate, House, Landlord, Tenant
+
+        ctx = super().get_context_data(**kwargs)
+        now = timezone.now()
+        two_periods = timedelta(days=60)
+        rows = []
+        for row in ctx.get(self.context_object_name, []):
+            row.stale_badge = (now - row.allocated_at) >= two_periods
+            rows.append(row)
+        ctx[self.context_object_name] = rows
+
+        g = self.request.GET
+        ctx.update({
+            "tenants": Tenant.objects.order_by("full_name"),
+            "houses": House.objects.select_related("estate").order_by(
+                "estate__name", "house_number"
+            ),
+            "estates": Estate.objects.order_by("name"),
+            "landlords": Landlord.objects.order_by("full_name"),
+            "active_tenant": g.get("tenant", ""),
+            "active_house": g.get("house", ""),
+            "active_estate": g.get("estate", ""),
+            "active_landlord": g.get("landlord", ""),
+            "active_ownership": g.get("ownership", ""),
+        })
+        return ctx
 
 
 class TenantStatementView(RoleRequiredMixin, DetailView):
@@ -441,3 +514,126 @@ class LandlordStatementView(RoleRequiredMixin, DetailView):
             status__in=[Invoice.Status.VOIDED, Invoice.Status.CANCELLED]
         ).order_by("-issue_date")[:100]
         return ctx
+
+
+# ---------------------------------------------------------------------------
+# Exit workflow (SPEC §20.5 — strict-order settlement)
+# ---------------------------------------------------------------------------
+class ExitWorkflowView(RoleRequiredMixin, View):
+    """Single-page exit workflow.
+
+    GET  — render the computed plan (preview).
+    POST — create/update the ExitSettlement row in DRAFT state, stamp the
+           plan. Execution is a separate submit after maker/checker.
+    """
+    required_roles = FINANCE_ROLES
+
+    def get(self, request, pk):
+        th = get_object_or_404(TenantHouse, pk=pk)
+        comp = compute_exit_settlement(th)
+        settlement = ExitSettlement.objects.filter(tenant_house=th).first()
+        context = {
+            "tenancy": th,
+            "comp": comp,
+            "settlement": settlement,
+            "other_active": list(
+                th.tenant.tenancies.filter(status=TenantHouse.Status.ACTIVE)
+                .exclude(pk=th.pk)
+            ),
+            "bank_accounts": _bank_accounts(),
+        }
+        return _render_exit(request, context)
+
+    @transaction.atomic
+    def post(self, request, pk):
+        th = get_object_or_404(TenantHouse, pk=pk)
+        action = request.POST.get("action", "compute")
+        damages = _parse_damages(request.POST)
+        transfer_ids = [
+            int(x) for x in request.POST.getlist("transfer_tenancy_id") if x.isdigit()
+        ]
+        comp = compute_exit_settlement(th, damages=damages)
+        plan = build_settlement_plan(
+            comp,
+            damages=damages,
+            transfer_to_tenancy_ids=transfer_ids,
+        )
+        settlement, _ = ExitSettlement.objects.update_or_create(
+            tenant_house=th,
+            defaults={
+                "status": ExitSettlement.Status.DRAFT,
+                "held_managed_at_start": comp.held_managed,
+                "held_meili_at_start": comp.held_meili,
+                "deposit_at_start": comp.deposit_balance,
+                "outstanding_at_start": comp.outstanding_total,
+                "damages_total": comp.damages_total,
+                "plan": plan,
+                "maker": request.user,
+                "approval_status": ApprovalStatus.PENDING,
+                "submitted_at": timezone.now(),
+                "created_by": request.user,
+            },
+        )
+
+        if action == "execute":
+            # Caller must be an approver (not the maker) — enforced by
+            # `ExitSettlement.approve()`. UI requires two-person flow.
+            try:
+                settlement.approve(request.user)
+            except SelfApprovalBlocked:
+                messages.error(
+                    request,
+                    "A checker (different user) must approve before executing."
+                )
+                return redirect("billing:exit-workflow", pk=th.pk)
+            refund_method = request.POST.get("refund_method") or "BANK"
+            bank_pk = request.POST.get("refund_bank_account")
+            bank = None
+            if bank_pk:
+                from accounting.models import BankAccount
+                bank = BankAccount.objects.filter(pk=bank_pk).first()
+            destination = request.POST.get("refund_destination", "")
+            reference = request.POST.get("refund_reference", "")
+            try:
+                execute_exit_settlement(
+                    settlement,
+                    refund_method=refund_method,
+                    refund_bank_account=bank,
+                    refund_destination=destination,
+                    refund_reference=reference,
+                    damages_input=damages,
+                    user=request.user,
+                )
+                messages.success(request, "Exit settlement executed.")
+            except ValidationError as exc:
+                messages.error(request, f"{exc}")
+            return redirect("billing:exit-workflow", pk=th.pk)
+
+        messages.info(request, "Settlement plan saved. Submit a checker for execution.")
+        return redirect("billing:exit-workflow", pk=th.pk)
+
+
+def _parse_damages(post):
+    from decimal import Decimal, InvalidOperation
+    descs = post.getlist("damage_description")
+    amts = post.getlist("damage_amount")
+    result = []
+    for d, a in zip(descs, amts):
+        d = (d or "").strip()
+        try:
+            amount = Decimal(a)
+        except (InvalidOperation, TypeError):
+            continue
+        if d and amount > 0:
+            result.append({"description": d, "amount": amount})
+    return result
+
+
+def _bank_accounts():
+    from accounting.models import BankAccount
+    return BankAccount.objects.filter(is_active=True).order_by("name")
+
+
+def _render_exit(request, context):
+    from django.shortcuts import render
+    return render(request, "billing/exit_workflow.html", context)

@@ -1,14 +1,68 @@
 {% extends "base.html" %}
-{% block title %}Advance Payments Report{% endblock %}
+{% block title %}Advance Payments Report · Meili Property{% endblock %}
 {% block content %}
 <section class="page-header">
   <h1>Advance Payments Held</h1>
-  <p class="muted">Employee-only view. Managed (fiduciary) vs Meili-Owned (deferred revenue) routing shown via badges.</p>
+  <p class="muted">Employee-only view. Managed (fiduciary) vs Meili-Owned (deferred revenue) routing shown via badges. Holds sitting for ≥ 2 full billing periods are flagged.</p>
 </section>
+
+<form method="get" class="card" style="padding:1rem;margin-bottom:1rem">
+  <div class="form-grid">
+    <div class="mb-3">
+      <label>Tenant</label>
+      <select name="tenant" class="form-select select2">
+        <option value="">All</option>
+        {% for t in tenants %}
+          <option value="{{ t.pk }}" {% if active_tenant == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.full_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="mb-3">
+      <label>House</label>
+      <select name="house" class="form-select select2">
+        <option value="">All</option>
+        {% for h in houses %}
+          <option value="{{ h.pk }}" {% if active_house == h.pk|stringformat:"s" %}selected{% endif %}>{{ h.estate.name }} — {{ h.house_number }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="mb-3">
+      <label>Estate</label>
+      <select name="estate" class="form-select select2">
+        <option value="">All</option>
+        {% for e in estates %}
+          <option value="{{ e.pk }}" {% if active_estate == e.pk|stringformat:"s" %}selected{% endif %}>{{ e.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="mb-3">
+      <label>Landlord</label>
+      <select name="landlord" class="form-select select2">
+        <option value="">All</option>
+        {% for l in landlords %}
+          <option value="{{ l.pk }}" {% if active_landlord == l.pk|stringformat:"s" %}selected{% endif %}>{{ l.full_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="mb-3">
+      <label>Ownership</label>
+      <select name="ownership" class="form-select">
+        <option value="">All</option>
+        <option value="MANAGED" {% if active_ownership == "MANAGED" %}selected{% endif %}>Managed</option>
+        <option value="MEILI" {% if active_ownership == "MEILI" %}selected{% endif %}>Meili-Owned</option>
+      </select>
+    </div>
+    <div class="mb-3 d-flex align-items-end">
+      <button type="submit" class="btn btn-primary">Filter</button>
+      <a class="btn ghost" href="{% url 'billing:report-advances' %}" style="margin-left:.5rem">Reset</a>
+    </div>
+  </div>
+</form>
+
 <div class="card">
   <table class="data">
     <thead><tr>
-      <th>Receipt #</th><th>Tenant</th><th class="num">Amount</th><th>Routing</th><th>Received</th>
+      <th>Receipt #</th><th>Tenant</th><th class="num">Amount</th><th>Routing</th><th>Received</th><th>Age</th>
     </tr></thead>
     <tbody>
       {% for row in rows %}
@@ -26,9 +80,16 @@
             {% endwith %}
           </td>
           <td>{{ row.allocated_at }}</td>
+          <td>
+            {% if row.stale_badge %}
+              <span class="badge watch" title="Held for ≥ 2 full billing periods">≥ 2 periods</span>
+            {% else %}
+              <span class="muted">—</span>
+            {% endif %}
+          </td>
         </tr>
       {% empty %}
-        <tr><td colspan="5" class="muted">No advances held.</td></tr>
+        <tr><td colspan="6" class="muted">No advances held.</td></tr>
       {% endfor %}
     </tbody>
   </table>

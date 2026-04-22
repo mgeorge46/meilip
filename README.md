@@ -152,3 +152,109 @@ Focus is on financial correctness, permissions, and maker-checker — not trivia
 The agent (Claude Code) writes code and configuration.
 **You** run the runserver / worker / beat / flower / docker processes. After any
 code change that affects background work, restart the worker and beat.
+
+---
+
+## Production deployment (Ubuntu 24.04 via Docker)
+
+### Prerequisites
+
+- Ubuntu 24.04 LTS host with Docker 26+ and `docker compose` plugin
+- DNS `A` record pointing to the host
+- TLS cert + key on disk at `./tls/fullchain.pem` + `./tls/privkey.pem`
+  (use certbot or your org's PKI; renewal is out of scope for this compose file)
+- Outbound HTTP(S) allowed to Sentry, Africa's Talking, SMTP
+
+### First deploy
+
+```bash
+# on the prod host
+git clone <repo> /opt/meili && cd /opt/meili
+cp .env.prod.example .env     # then fill in secrets
+mkdir -p tls && cp /path/to/{fullchain,privkey}.pem tls/
+
+DJANGO_ENV=prod docker compose -f docker-compose.prod.yml up -d --build
+
+# verify
+curl -fsS https://<host>/healthz/
+curl -fsS https://<host>/readyz/
+```
+
+On first boot, `web` runs migrations automatically (see compose command).
+
+### Admin bootstrap
+
+```bash
+docker compose -f docker-compose.prod.yml exec web \
+  python manage.py create_initial_superuser \
+  --email admin@example.com --phone +256700000000 \
+  --first-name Admin --last-name User --password <strong>
+```
+
+### Updating
+
+```bash
+cd /opt/meili && git pull
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d      # rolling restart
+```
+
+### Backups
+
+- **Daily** — systemd timer runs `scripts/backup_db.sh` at 02:00, keeps 14 days
+  of dumps under `/var/backups/meili/`.
+- **Weekly** — Sunday backup is uploaded to S3 if `S3_BACKUP_BUCKET` is set.
+- To restore: `gunzip < dump.sql.gz | psql $DATABASE_URL`.
+
+### Flower / Celery monitoring
+
+- `https://<host>/flower/` — HTTP basic-auth via `FLOWER_BASIC_AUTH`.
+- Put Flower behind your VPN or IP allow-list in nginx if the host is
+  internet-facing. Default config trusts the basic-auth + upstream-only network.
+
+---
+
+## Operations runbook
+
+### RabbitMQ is down
+1. `docker compose -f docker-compose.prod.yml logs rabbitmq | tail -200`
+2. Restart: `docker compose -f docker-compose.prod.yml restart rabbitmq`.
+3. If the volume is corrupted, stop the service, rename `rabbitmq_data`
+   volume, and recreate. Celery tasks queued at the instant of failure are
+   LOST — `django-celery-beat` will re-fire scheduled tasks on the next tick.
+4. Workers reconnect automatically once the broker is healthy.
+
+### Worker OOM / stuck task
+1. `docker compose -f docker-compose.prod.yml restart celery_worker`
+2. Inspect Flower for the offending task name. If a specific task leaks
+   memory, cap retries in the task decorator and add a soft time limit.
+3. For beat-scheduled tasks, pause via Django admin → *Periodic Tasks* → untick
+   *Enabled* while you investigate.
+
+### Invoice generation failed for a period
+1. Identify the failed periodic task in Flower or in `django_celery_results`.
+2. Re-run manually for the affected date:
+   ```bash
+   docker compose -f docker-compose.prod.yml exec web \
+     python manage.py generate_invoices --today YYYY-MM-DD
+   ```
+   The task is idempotent — it skips tenancies that already have an invoice
+   for the period.
+
+### Paystack / mobile-money webhook keeps retrying
+1. Check `/api/v1/payments/` in the provider's dashboard — our endpoint returns
+   a 2xx only after the idempotency check + FIFO allocation commit.
+2. If a duplicate `(api_key, transaction_id)` is observed the endpoint returns
+   the original 200 OK payload. That's intentional; ignore.
+3. 4xx responses (auth failures, malformed payload) are visible in the provider
+   retry log; our Sentry captures 5xx only.
+
+### Sentry flooded
+- `SENTRY_TRACES_SAMPLE_RATE` in `.env` (default 0.1) caps perf tracing.
+- For error noise, bump the integration filter in `settings/prod.py`.
+
+### Rotating secrets
+- `SECRET_KEY`, DB password, broker password: update `.env`, then
+  `docker compose -f docker-compose.prod.yml up -d` to apply. Sessions survive
+  because `SESSION_ENGINE` is DB-backed; `SECRET_KEY` rotation invalidates
+  CSRF tokens until browsers refresh.

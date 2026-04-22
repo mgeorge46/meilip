@@ -14,8 +14,8 @@ from .forms import (
     PasswordResetRequestForm,
     ProfileForm,
 )
-from .models import LoginAttempt, PasswordResetToken
-from .permissions import has_any_role
+from .models import AuditAction, AuditLog, LoginAttempt, PasswordResetToken
+from .permissions import has_any_role, role_required
 
 
 def _client_ip(request):
@@ -155,4 +155,60 @@ def profile_view(request):
         request,
         "accounts/profile.html",
         {"form": form, "can_edit": can_edit, "page_title": "My profile"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Audit log viewer — Admin / Super-Admin only.
+# Filters: actor email, action, target type, date range.
+# ---------------------------------------------------------------------------
+@role_required("ADMIN", "SUPER_ADMIN")
+@require_GET
+def audit_log_view(request):
+    from django.core.paginator import Paginator
+
+    qs = AuditLog.objects.select_related("actor").all()
+
+    actor_q = (request.GET.get("actor") or "").strip()
+    action = (request.GET.get("action") or "").strip()
+    target_type = (request.GET.get("target_type") or "").strip()
+    date_from = (request.GET.get("from") or "").strip()
+    date_to = (request.GET.get("to") or "").strip()
+
+    if actor_q:
+        qs = qs.filter(actor__email__icontains=actor_q)
+    if action:
+        qs = qs.filter(action=action)
+    if target_type:
+        qs = qs.filter(target_type__iexact=target_type)
+    if date_from:
+        qs = qs.filter(timestamp__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(timestamp__date__lte=date_to)
+
+    page_size = int(request.GET.get("page_size") or settings.PAGINATION_DEFAULT)
+    if page_size not in settings.PAGINATION_PAGE_SIZES:
+        page_size = settings.PAGINATION_DEFAULT
+    paginator = Paginator(qs, page_size)
+    page = paginator.get_page(request.GET.get("page"))
+
+    target_types = (
+        AuditLog.objects.exclude(target_type="")
+        .values_list("target_type", flat=True).distinct().order_by("target_type")
+    )
+
+    return render(
+        request,
+        "accounts/audit_log.html",
+        {
+            "page_title": "Audit log",
+            "page": page,
+            "action_choices": AuditAction.choices,
+            "target_types": list(target_types),
+            "filters": {
+                "actor": actor_q, "action": action, "target_type": target_type,
+                "from": date_from, "to": date_to, "page_size": page_size,
+            },
+            "page_sizes": settings.PAGINATION_PAGE_SIZES,
+        },
     )

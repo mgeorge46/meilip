@@ -48,6 +48,29 @@
         width: "100%",
         dropdownAutoWidth: true,
       });
+
+      // Safety-net: upgrade any remaining text inputs that look like date / time /
+      // datetime fields to native HTML5 pickers. Only touches inputs that still
+      // have type="text" — widgets explicitly set server-side are untouched.
+      $('input[type="text"]').each(function () {
+        var name = (this.name || "").toLowerCase();
+        var val = (this.value || "").trim();
+        var isIsoDateTime = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(val);
+        var isIsoDate = /^\d{4}-\d{2}-\d{2}$/.test(val);
+        var isIsoTime = /^\d{2}:\d{2}(:\d{2})?$/.test(val);
+        if (
+          /_at$|datetime$/.test(name) ||
+          (name === "timestamp") ||
+          isIsoDateTime
+        ) {
+          this.type = "datetime-local";
+          if (isIsoDateTime) this.value = val.replace(" ", "T").slice(0, 16);
+        } else if (/_date$|^date$|_on$/.test(name) || isIsoDate) {
+          this.type = "date";
+        } else if (/_time$|^time$/.test(name) || isIsoTime) {
+          this.type = "time";
+        }
+      });
     });
   </script>
   {% block body_extra %}{% endblock %}

@@ -6,6 +6,28 @@
   <div><a class="btn primary" href="{% url 'core:estate-create' %}">+ New Estate</a></div>
 </section>
 
+<form method="get" class="card filter-bar">
+  <div class="filter-grid">
+    <div>
+      <label>Search</label>
+      <input type="text" name="q" value="{{ filter_q }}" placeholder="Name, location, landlord">
+    </div>
+    <div>
+      <label>Landlord</label>
+      <select name="landlord" class="form-select select2">
+        <option value="">Any</option>
+        {% for l in landlords %}
+        <option value="{{ l.pk }}" {% if filter_landlord == l.pk|stringformat:'s' %}selected{% endif %}>{{ l.full_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn primary">Filter</button>
+      <a class="btn ghost" href="{% url 'core:estate-list' %}">Reset</a>
+    </div>
+  </div>
+</form>
+
 <div class="card">
   <table class="data">
     <thead><tr><th>Name</th><th>Landlord</th><th>Location</th><th>Houses</th><th></th></tr></thead>
@@ -18,7 +40,7 @@
         <td>{{ e.houses.count }}</td>
         <td class="actions"><a href="{% url 'core:estate-update' e.pk %}">Edit</a></td>
       </tr>
-      {% empty %}<tr><td colspan="5" class="muted">No estates yet.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="5" class="muted">No estates match.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>

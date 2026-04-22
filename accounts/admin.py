@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from simple_history.admin import SimpleHistoryAdmin
 
-from .models import LoginAttempt, PasswordResetToken, Role, User, UserRole
+from .models import AuditLog, LoginAttempt, PasswordResetToken, Role, User, UserRole
 
 
 class UserRoleInline(admin.TabularInline):
@@ -97,3 +97,18 @@ class PasswordResetTokenAdmin(admin.ModelAdmin):
     list_display = ("user", "token", "created_at", "expires_at", "used_at")
     search_fields = ("user__email", "token")
     readonly_fields = ("token", "created_at", "expires_at", "used_at")
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ("timestamp", "actor", "action", "target_type", "target_id", "ip_address")
+    list_filter = ("action", "target_type")
+    search_fields = ("actor__email", "target_repr", "ip_address", "path")
+    date_hierarchy = "timestamp"
+    readonly_fields = tuple(f.name for f in AuditLog._meta.fields)
+
+    def has_add_permission(self, request):
+        return False  # append-only: only the code writes audit rows
+
+    def has_delete_permission(self, request, obj=None):
+        return False  # never delete audit rows

@@ -14,7 +14,7 @@ from django.utils import timezone
 from simple_history.models import HistoricalRecords
 
 from core.fields import UGXField
-from core.models import CoreBaseModel, TenantHouse
+from core.models import CoreBaseModel, TenantHouse, UtilityKind
 
 from .exceptions import (
     CreditNoteExceedsInvoice,
@@ -250,6 +250,7 @@ class InvoiceLine(CoreBaseModel):
         RENT = "RENT", "Rent"
         AD_HOC = "AD_HOC", "Ad-hoc"
         PRORATA = "PRORATA", "Pro-rata rent"
+        UTILITY = "UTILITY", "Utility"
 
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="lines")
     kind = models.CharField(max_length=16, choices=Kind.choices)
@@ -258,12 +259,18 @@ class InvoiceLine(CoreBaseModel):
     period_from = models.DateField(null=True, blank=True)
     period_to = models.DateField(null=True, blank=True)
 
-    # For ad-hoc lines we track who is billed (tenant pays, but income
+    # For ad-hoc / utility lines we track who is billed (tenant pays, but income
     # accrues to landlord or Meili).
     TARGET_LANDLORD = "LANDLORD"
     TARGET_MEILI = "MEILI"
     TARGETS = [(TARGET_LANDLORD, "Landlord"), (TARGET_MEILI, "Meili")]
     target = models.CharField(max_length=16, choices=TARGETS, blank=True)
+
+    # Only set when kind=UTILITY — drives income-account routing.
+    utility_kind = models.CharField(
+        max_length=16, choices=UtilityKind.choices, blank=True,
+        help_text="For UTILITY lines only — which utility-income account to credit.",
+    )
 
     class Meta:
         ordering = ["id"]
@@ -303,6 +310,13 @@ class AdHocCharge(MakerCheckerMixin, CoreBaseModel):
     attached_invoice = models.ForeignKey(
         Invoice, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="ad_hoc_charges",
+    )
+    # When set, this charge represents a separately-billed utility and will be
+    # posted to the matching utility-income account (only if the house/estate
+    # flag for this utility is True). If blank, posts as generic ad-hoc.
+    utility_kind = models.CharField(
+        max_length=16, choices=UtilityKind.choices, blank=True,
+        help_text="Leave blank for non-utility ad-hocs.",
     )
 
     history = HistoricalRecords()
@@ -530,6 +544,166 @@ class Refund(MakerCheckerMixin, CoreBaseModel):
 
     class Meta:
         ordering = ["-created_at"]
+
+
+# ---------------------------------------------------------------------------
+# Security Deposit lifecycle
+# ---------------------------------------------------------------------------
+class SecurityDeposit(CoreBaseModel):
+    """Tracks the lifecycle of a security deposit held for a tenancy.
+
+    The UGX amount lives on `TenantHouse.security_deposit` (captured at
+    tenancy creation). This model tracks what portion has been applied vs
+    refunded vs still held, plus a per-movement audit trail.
+
+    Status is derived from balances:
+        held = amount_held - amount_applied - amount_refunded
+        HELD                 → held == amount_held
+        PARTIALLY_APPLIED    → 0 < held < amount_held
+        FULLY_APPLIED        → held == 0 and amount_applied > 0
+        REFUNDED             → held == 0 and amount_refunded > 0
+                              (combinations resolve toward whichever moved last)
+    """
+
+    class Status(models.TextChoices):
+        HELD = "HELD", "Held"
+        PARTIALLY_APPLIED = "PARTIALLY_APPLIED", "Partially Applied"
+        FULLY_APPLIED = "FULLY_APPLIED", "Fully Applied"
+        REFUNDED = "REFUNDED", "Refunded"
+
+    tenant_house = models.OneToOneField(
+        TenantHouse, on_delete=models.PROTECT, related_name="security_deposit_record"
+    )
+    amount_held = UGXField(default=Decimal("0"))
+    amount_applied = UGXField(default=Decimal("0"))
+    amount_refunded = UGXField(default=Decimal("0"))
+    status = models.CharField(
+        max_length=24, choices=Status.choices, default=Status.HELD,
+    )
+    hold_journal = models.ForeignKey(
+        "accounting.JournalEntry", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="+",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Deposit {self.tenant_house} [{self.get_status_display()}]"
+
+    @property
+    def balance(self):
+        return (
+            Decimal(self.amount_held or 0)
+            - Decimal(self.amount_applied or 0)
+            - Decimal(self.amount_refunded or 0)
+        )
+
+    def recompute_status(self):
+        held = self.balance
+        if self.amount_held and held >= self.amount_held:
+            self.status = self.Status.HELD
+        elif held <= 0 and self.amount_refunded and self.amount_refunded > 0 \
+                and self.amount_applied == 0:
+            self.status = self.Status.REFUNDED
+        elif held <= 0:
+            self.status = self.Status.FULLY_APPLIED
+        else:
+            self.status = self.Status.PARTIALLY_APPLIED
+
+
+class SecurityDepositMovement(models.Model):
+    """One row per debit against a deposit — either applied to a damage/
+    invoice, or refunded to the tenant."""
+
+    class Kind(models.TextChoices):
+        APPLY_INVOICE = "APPLY_INVOICE", "Applied to invoice"
+        APPLY_DAMAGE = "APPLY_DAMAGE", "Applied to damage/adhoc"
+        REFUND = "REFUND", "Refunded to tenant"
+
+    deposit = models.ForeignKey(
+        SecurityDeposit, on_delete=models.PROTECT, related_name="movements"
+    )
+    kind = models.CharField(max_length=24, choices=Kind.choices)
+    amount = UGXField()
+    invoice = models.ForeignKey(
+        Invoice, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    ad_hoc_charge = models.ForeignKey(
+        AdHocCharge, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    refund = models.ForeignKey(
+        "billing.Refund", on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    journal_entry = models.ForeignKey(
+        "accounting.JournalEntry", on_delete=models.PROTECT, related_name="+",
+    )
+    occurred_at = models.DateTimeField(default=timezone.now)
+    memo = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ["occurred_at", "id"]
+
+
+# ---------------------------------------------------------------------------
+# Exit settlement — records the SPEC §20.5 strict-order closeout of a
+# tenancy. One row per executed exit; captures the step-by-step breakdown
+# for audit.
+# ---------------------------------------------------------------------------
+class ExitSettlement(MakerCheckerMixin, CoreBaseModel):
+    """Post-approval executor stores the computed plan on this row.
+
+    Maker-checker is inherited because a settlement can create a Refund,
+    which itself is maker-checker-blocked from bypass. For simplicity we
+    require a checker on the settlement envelope too — this guards the
+    'optional transfer to other tenancies' step, which is employee
+    approval per SPEC §20.5.
+    """
+    allow_trusted_bypass = False
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        EXECUTED = "EXECUTED", "Executed"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    tenant_house = models.OneToOneField(
+        TenantHouse, on_delete=models.PROTECT, related_name="exit_settlement"
+    )
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.DRAFT
+    )
+    # Inputs captured at compute time.
+    held_managed_at_start = UGXField(default=Decimal("0"))
+    held_meili_at_start = UGXField(default=Decimal("0"))
+    deposit_at_start = UGXField(default=Decimal("0"))
+    outstanding_at_start = UGXField(default=Decimal("0"))
+    damages_total = UGXField(default=Decimal("0"))
+
+    # Plan — how the funds are to be applied.
+    plan = models.JSONField(default=dict, blank=True)
+
+    # Outputs.
+    final_refund_amount = UGXField(default=Decimal("0"))
+    landlord_shortfall = UGXField(default=Decimal("0"))
+    refund = models.ForeignKey(
+        "billing.Refund", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="+",
+    )
+    executed_at = models.DateTimeField(null=True, blank=True)
+    executed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT, null=True, blank=True, related_name="+",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Exit settlement {self.tenant_house} [{self.status}]"
 
 
 # ---------------------------------------------------------------------------

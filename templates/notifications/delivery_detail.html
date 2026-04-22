@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Notification {{ row.pk }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>Notification Delivery #{{ row.pk }}</h1>
+  <p><a href="{% url 'notifications:delivery-list' %}">← Back to list</a></p>
+</section>
+
+<div class="card" style="padding:1rem">
+  <dl class="kv">
+    <dt>Status</dt><dd><span class="badge {{ row.status|lower }}">{{ row.get_status_display }}</span></dd>
+    <dt>Template</dt><dd>{{ row.get_template_display }}</dd>
+    <dt>Channel</dt><dd>{{ row.get_channel_display }}</dd>
+    <dt>Recipient</dt><dd>{{ row.recipient }}</dd>
+    <dt>Tenant</dt><dd>{{ row.tenant.full_name|default:"—" }}</dd>
+    <dt>Landlord</dt><dd>{{ row.landlord.full_name|default:"—" }}</dd>
+    <dt>Attempts</dt><dd>{{ row.attempt_count }}</dd>
+    <dt>Created</dt><dd>{{ row.created_at }}</dd>
+    <dt>Sent</dt><dd>{{ row.sent_at|default:"—" }}</dd>
+    <dt>Provider</dt><dd>{{ row.provider|default:"—" }}</dd>
+    <dt>Provider Msg Id</dt><dd>{{ row.provider_message_id|default:"—" }}</dd>
+  </dl>
+  <h3 style="margin-top:1rem">Subject</h3>
+  <p>{{ row.subject|default:"(no subject)" }}</p>
+  <h3>Body</h3>
+  <pre style="white-space:pre-wrap">{{ row.body }}</pre>
+  {% if row.error_detail %}
+    <h3 style="color:#c00">Error</h3>
+    <pre style="white-space:pre-wrap">{{ row.error_detail }}</pre>
+  {% endif %}
+  <h3>Provider response</h3>
+  <pre style="white-space:pre-wrap">{{ row.provider_response }}</pre>
+</div>
+{% endblock %}

@@ -57,16 +57,26 @@
       <button class="menu-toggle" data-label="Reports"><span class="menu-icon">◧</span><span class="menu-label">Reports</span><span class="menu-chevron">›</span></button>
       <ul class="submenu">
         <li><a href="{% url 'accounting:commission-report' %}">Commission Income</a></li>
+        <li><a href="{% url 'billing:report-revenue' %}">Revenue Summary</a></li>
+        <li><a href="{% url 'billing:report-collections' %}">Collection Performance</a></li>
+        <li><a href="{% url 'billing:report-occupancy' %}">Occupancy Rates</a></li>
+        <li><a href="{% url 'billing:report-acquisition' %}">Tenant Acquisition</a></li>
+        <li><a href="{% url 'billing:report-repairs' %}">Repairs per House</a></li>
+        <li><a href="{% url 'billing:report-estate-costs' %}">Estate Cost Rollup</a></li>
+        <li><a href="{% url 'billing:report-advances' %}">Advance Payments</a></li>
+        <li><a href="{% url 'scoring:score-list' %}">Tenant Credit Scores</a></li>
         <li><a href="{% url 'dashboard:coming-soon' 'landlord-statements' %}">Landlord Statements</a></li>
-        <li><a href="{% url 'dashboard:coming-soon' 'collection-performance' %}">Collection Performance</a></li>
-        <li><a href="{% url 'dashboard:coming-soon' 'occupancy-rates' %}">Occupancy Rates</a></li>
-        <li><a href="{% url 'dashboard:coming-soon' 'tenant-acquisition' %}">Tenant Acquisition</a></li>
       </ul>
     </li>
+
+    <li class="sidebar-section-title">Operations</li>
+    <li><a href="{% url 'notifications:delivery-list' %}" data-label="Notifications"><span class="menu-icon">✉</span><span class="menu-label">Notifications</span></a></li>
 
     {% if request.user.is_superuser or 'ADMIN' in user_role_names %}
     <li class="sidebar-section-title">Admin</li>
     <li><a href="{% url 'dashboard:coming-soon' 'admin-settings' %}" data-label="Admin Settings"><span class="menu-icon">⚙</span><span class="menu-label">Admin Settings</span></a></li>
+    <li><a href="{% url 'accounts:audit-log' %}" data-label="Audit Log"><span class="menu-icon">◈</span><span class="menu-label">Audit Log</span></a></li>
+    <li><a href="{% url 'api:docs' %}" data-label="API Docs"><span class="menu-icon">⚡</span><span class="menu-label">API Docs</span></a></li>
     {% endif %}
   </ul>
 </aside>

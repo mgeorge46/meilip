@@ -1,15 +1,48 @@
-"""Dashboard views — home, global search, coming-soon placeholder, custom errors."""
+"""Dashboard views — home KPIs, global search, roadmap placeholder, errors."""
+import json
+
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
+
+from . import services
 
 
 @login_required
 @require_GET
 def home(request):
-    """Employee dashboard landing page."""
-    return render(request, "dashboard/home.html", {"page_title": "Dashboard"})
+    """Employee dashboard landing page — live KPIs + charts."""
+    cards = services.stat_cards()
+    ageing = services.ar_ageing()
+    trend = services.revenue_trend()
+    notif = services.notification_health()
+    context = {
+        "page_title": "Dashboard",
+        "cards": cards,
+        "ageing": ageing,
+        "ageing_json": json.dumps(ageing),
+        "trend": trend,
+        "trend_json": json.dumps(trend),
+        "notif": notif,
+        "top_arrears": services.top_arrears(),
+        "recent_payments": services.recent_payments(),
+    }
+    return render(request, "dashboard/home.html", context)
+
+
+@login_required
+@require_GET
+def kpi_api(request):
+    """JSON endpoint for the dashboard — used when the user clicks
+    the refresh button so charts update without a full reload."""
+    return JsonResponse({
+        "cards": services.stat_cards(),
+        "ageing": services.ar_ageing(),
+        "trend": services.revenue_trend(),
+        "notif": services.notification_health(),
+    })
 
 
 @login_required
@@ -51,12 +84,33 @@ def global_search(request):
     )
 
 
+ROADMAP = {
+    "invoices": ("Invoices", "Invoice create / void / credit-note UI on top of the existing billing services."),
+    "payments": ("Payments", "Manual payment entry form with maker-checker flow for cash receipts."),
+    "receipts": ("Receipts", "Receipt lookup + reprint with PDF export."),
+    "invoice-schedules": ("Invoice Schedules", "Per-tenancy schedule overrides and pause/resume UI."),
+    "trial-balance": ("Trial Balance", "Period-end trial balance export with drill-through to journal entries."),
+    "landlord-statements": ("Landlord Statements", "Per-period statement with PDF export matching the sample report format."),
+    "admin-settings": ("Admin Settings", "Tenant-wide settings: branding, tax defaults, beat schedule overrides."),
+}
+
+
 @login_required
 def coming_soon(request, feature):
+    label, description = ROADMAP.get(
+        feature, (feature.replace("-", " ").title(), ""),
+    )
+    other_roadmap = [(slug, item) for slug, item in ROADMAP.items() if slug != feature]
     return render(
         request,
         "dashboard/coming_soon.html",
-        {"page_title": "Coming Soon", "feature": feature.replace("-", " ").title()},
+        {
+            "page_title": label,
+            "feature": label,
+            "description": description,
+            "other_roadmap": other_roadmap,
+            "feature_slug": feature,
+        },
     )
 
 

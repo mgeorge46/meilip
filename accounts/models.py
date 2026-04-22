@@ -156,3 +156,110 @@ class PasswordResetToken(models.Model):
 
     def __str__(self):
         return f"Reset token for {self.user.email}"
+
+
+# ---------------------------------------------------------------------------
+# Audit log — complements simple-history with a high-level, append-only
+# per-action record that includes IP + User-Agent. simple-history answers
+# "what changed on this row?"; AuditLog answers "who did what action, from
+# where, when?" and is the log shown to Admins in the audit viewer.
+# Never deleted. Admin/Super-Admin read-only.
+# ---------------------------------------------------------------------------
+class AuditAction(models.TextChoices):
+    LOGIN_SUCCESS = "LOGIN_SUCCESS", "Login success"
+    LOGIN_FAILED = "LOGIN_FAILED", "Login failed"
+    LOGOUT = "LOGOUT", "Logout"
+    PASSWORD_RESET = "PASSWORD_RESET", "Password reset"
+    PASSWORD_CHANGED = "PASSWORD_CHANGED", "Password changed"
+    PERMISSION_DENIED = "PERMISSION_DENIED", "Permission denied"
+    CREATE = "CREATE", "Create"
+    UPDATE = "UPDATE", "Update"
+    DELETE = "DELETE", "Delete"
+    APPROVE = "APPROVE", "Approve"
+    REJECT = "REJECT", "Reject"
+    VOID = "VOID", "Void"
+    REFUND = "REFUND", "Refund"
+    CREDIT_NOTE = "CREDIT_NOTE", "Credit note"
+    PAYMENT = "PAYMENT", "Payment"
+    EXPORT = "EXPORT", "Export"
+    API_CALL = "API_CALL", "API call"
+    NOTIFICATION_SENT = "NOTIFICATION_SENT", "Notification sent"
+    OTHER = "OTHER", "Other"
+
+
+class AuditLog(models.Model):
+    """Append-only audit trail. Intentionally a flat model to keep writes
+    cheap and queries simple.
+
+    `actor` is null for system-driven events (e.g. Celery-triggered invoice
+    generation) or for failed login attempts where no user can be resolved.
+    `target_repr` stores a human-readable label; `target_type` / `target_id`
+    allow filtering in the admin viewer without pulling ContentType in.
+    """
+
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="audit_entries",
+    )
+    action = models.CharField(max_length=32, choices=AuditAction.choices, db_index=True)
+    target_type = models.CharField(max_length=64, blank=True, db_index=True)
+    target_id = models.CharField(max_length=64, blank=True, db_index=True)
+    target_repr = models.CharField(max_length=255, blank=True)
+
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=512, blank=True)
+    path = models.CharField(max_length=255, blank=True)
+    method = models.CharField(max_length=8, blank=True)
+
+    detail = models.JSONField(default=dict, blank=True)
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["actor", "-timestamp"]),
+            models.Index(fields=["action", "-timestamp"]),
+            models.Index(fields=["target_type", "target_id"]),
+        ]
+
+    def __str__(self):
+        who = self.actor.email if self.actor else "-"
+        tgt = f"{self.target_type}#{self.target_id}" if self.target_type else "-"
+        return f"{self.timestamp:%Y-%m-%d %H:%M} {who} {self.action} {tgt}"
+
+    @classmethod
+    def record(cls, action, actor=None, target=None, request=None, detail=None, target_repr=""):
+        """Convenience writer — resolves target + request automatically."""
+        from django.db.models import Model as _Model
+        kwargs = {
+            "action": action,
+            "actor": actor if (actor and getattr(actor, "pk", None)) else None,
+            "detail": detail or {},
+        }
+        if target is not None and isinstance(target, _Model):
+            kwargs["target_type"] = target.__class__.__name__
+            kwargs["target_id"] = str(getattr(target, "pk", "") or "")
+            kwargs["target_repr"] = target_repr or str(target)[:255]
+        elif target_repr:
+            kwargs["target_repr"] = target_repr[:255]
+        if request is not None:
+            kwargs["ip_address"] = _extract_ip(request)
+            kwargs["user_agent"] = (request.META.get("HTTP_USER_AGENT") or "")[:512]
+            kwargs["path"] = (getattr(request, "path", "") or "")[:255]
+            kwargs["method"] = (getattr(request, "method", "") or "")[:8]
+            if kwargs["actor"] is None:
+                u = getattr(request, "user", None)
+                if u is not None and getattr(u, "is_authenticated", False):
+                    kwargs["actor"] = u
+        return cls.objects.create(**kwargs)
+
+
+def _extract_ip(request):
+    """Honour X-Forwarded-For when behind the nginx reverse proxy, else
+    fall back to REMOTE_ADDR."""
+    xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR") or None

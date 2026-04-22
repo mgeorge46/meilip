@@ -224,3 +224,51 @@ class ComingSoonAndSearchTests(TestCase):
         resp = c.get(reverse("dashboard:search"), {"q": "Findable"})
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Findable Person")
+
+    def test_coming_soon_renders_roadmap(self):
+        """SPEC §roadmap — 'Coming Soon' page shows the upcoming-release list."""
+        c = Client()
+        c.force_login(self.user)
+        resp = c.get(reverse("dashboard:coming-soon", args=["invoices"]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "on the roadmap")
+        self.assertContains(resp, "Other features on the roadmap")
+        # Other roadmap items should be listed; the current one (Invoices) should not
+        # appear in the roadmap block (only as the page heading).
+        self.assertContains(resp, "Trial Balance")
+
+
+# ---------------------------------------------------------------------------
+# Dashboard KPI API + home view smoke tests (Phase 8)
+# ---------------------------------------------------------------------------
+@override_settings(AXES_ENABLED=False)
+class DashboardKpiTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = _mk_user("kpi@meili.test", "+256700900050")
+        _assign(cls.user, "ADMIN")
+
+    def test_home_renders_for_admin(self):
+        c = Client()
+        c.force_login(self.user)
+        resp = c.get(reverse("dashboard:home"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Outstanding AR")
+        self.assertContains(resp, "Billed vs Collected")
+
+    def test_kpi_api_returns_json_structure(self):
+        c = Client()
+        c.force_login(self.user)
+        resp = c.get(reverse("dashboard:kpi-api"))
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        for key in ("cards", "ageing", "trend", "notif"):
+            self.assertIn(key, body)
+        self.assertIsInstance(body["cards"], list)
+        self.assertIsInstance(body["trend"], list)
+        self.assertEqual(len(body["trend"]), 12)  # last 12 months
+
+    def test_kpi_api_requires_auth(self):
+        c = Client()
+        resp = c.get(reverse("dashboard:kpi-api"))
+        self.assertEqual(resp.status_code, 302)  # redirected to login

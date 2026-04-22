@@ -31,6 +31,7 @@ urlpatterns = [
     path("tenants/new/", views.TenantCreateView.as_view(), name="tenant-create"),
     path("tenants/<int:pk>/", views.TenantDetailView.as_view(), name="tenant-detail"),
     path("tenants/<int:pk>/edit/", views.TenantUpdateView.as_view(), name="tenant-update"),
+    path("tenants/<int:pk>/message/", views.TenantMessageView.as_view(), name="tenant-message"),
     path("tenants/<int:pk>/delete/", views.TenantDeleteView.as_view(), name="tenant-delete"),
 
     # Tenancy (TenantHouse)

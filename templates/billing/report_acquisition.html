@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Tenant Acquisition · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>Tenant Acquisition</h1>
+    <p class="muted">New tenancies, activations and exits per month (12 rolling months).</p>
+  </div>
+</section>
+
+<div class="card">
+  <table class="data">
+    <thead>
+      <tr>
+        <th>Period</th>
+        <th class="num">New</th>
+        <th class="num">Activated</th>
+        <th class="num">Exited</th>
+        <th class="num">Net</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.period }}</td>
+        <td class="num">{{ r.new }}</td>
+        <td class="num">{{ r.activated }}</td>
+        <td class="num">{{ r.exited }}</td>
+        <td class="num"><strong>{{ r.net }}</strong></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="muted">No tenancy activity.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

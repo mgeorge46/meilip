@@ -1,0 +1,152 @@
+# Meili Property — production stack.
+# Usage:
+#   docker compose -f docker-compose.prod.yml --env-file .env up -d
+#
+# Required env (in .env): SECRET_KEY, ALLOWED_HOSTS, DATABASE_URL,
+#   CELERY_BROKER_URL, CSRF_TRUSTED_ORIGINS, SENTRY_DSN (optional),
+#   AT_API_KEY / AT_USERNAME (if real provider),
+#   EMAIL_HOST / EMAIL_HOST_USER / EMAIL_HOST_PASSWORD.
+
+x-django-env: &django-env
+  DJANGO_ENV: prod
+  DJANGO_SETTINGS_MODULE: meili_property.settings.prod
+  SECRET_KEY: ${SECRET_KEY}
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+  DATABASE_URL: ${DATABASE_URL}
+  CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+  CELERY_RESULT_BACKEND: django-db
+  CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  SENTRY_ENV: ${SENTRY_ENV:-production}
+  EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}
+  EMAIL_HOST: ${EMAIL_HOST:-}
+  EMAIL_PORT: ${EMAIL_PORT:-587}
+  EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+  EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+  DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-no-reply@meili.example}
+  NOTIFICATION_PROVIDERS: ${NOTIFICATION_PROVIDERS:-{"SMS":"at","WHATSAPP":"at","EMAIL":"smtp"}}
+  AT_API_KEY: ${AT_API_KEY:-}
+  AT_USERNAME: ${AT_USERNAME:-sandbox}
+  AT_SENDER_ID: ${AT_SENDER_ID:-}
+  FLOWER_BASIC_AUTH: ${FLOWER_BASIC_AUTH}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: meili_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-meili_prd01}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-meili_prd01}"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: meili_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-meili}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-meili}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  web:
+    build: .
+    image: meili_property:latest
+    container_name: meili_web
+    environment:
+      <<: *django-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             gunicorn meili_property.wsgi:application
+               --bind 0.0.0.0:8000
+               --workers 3 --timeout 60
+               --access-logfile - --error-logfile -"
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/healthz/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  celery_worker:
+    image: meili_property:latest
+    container_name: meili_celery_worker
+    environment:
+      <<: *django-env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    command: celery -A meili_property worker --loglevel=INFO --concurrency=4
+    restart: unless-stopped
+
+  celery_beat:
+    # IMPORTANT: ONLY ONE beat instance in the stack. Duplicate beats
+    # cause duplicate schedule firings.
+    image: meili_property:latest
+    container_name: meili_celery_beat
+    environment:
+      <<: *django-env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    command: celery -A meili_property beat --loglevel=INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    restart: unless-stopped
+
+  flower:
+    image: meili_property:latest
+    container_name: meili_flower
+    environment:
+      <<: *django-env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: celery -A meili_property flower --port=5555 --basic_auth=${FLOWER_BASIC_AUTH} --url_prefix=flower
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: meili_nginx
+    depends_on:
+      - web
+      - flower
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./tls:/etc/nginx/tls:ro
+      - static_data:/srv/static:ro
+      - media_data:/srv/media:ro
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  media_data:
+  static_data:

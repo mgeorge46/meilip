@@ -6,9 +6,57 @@
   <div><a class="btn primary" href="{% url 'core:tenant-create' %}">+ New Tenant</a></div>
 </section>
 
+<form method="get" class="card filter-bar">
+  <div class="filter-grid">
+    <div>
+      <label>Search</label>
+      <input type="text" name="q" value="{{ filter_q }}" placeholder="Name, phone, email, ID">
+    </div>
+    <div>
+      <label>Status</label>
+      <select name="status" class="form-select">
+        <option value="">Any</option>
+        <option value="ACTIVE"   {% if filter_status == 'ACTIVE' %}selected{% endif %}>Active</option>
+        <option value="PROSPECT" {% if filter_status == 'PROSPECT' %}selected{% endif %}>Prospect only</option>
+        <option value="EXITED"   {% if filter_status == 'EXITED' %}selected{% endif %}>Exited</option>
+      </select>
+    </div>
+    <div>
+      <label>Tier</label>
+      <select name="tier" class="form-select select2">
+        <option value="">All</option>
+        {% for value, label in tiers %}
+        <option value="{{ value }}" {% if value == active_tier %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Sales rep</label>
+      <select name="sales_rep" class="form-select select2">
+        <option value="">Any</option>
+        {% for e in sales_reps %}
+        <option value="{{ e.pk }}" {% if filter_sales_rep == e.pk|stringformat:'s' %}selected{% endif %}>{{ e.full_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Sort</label>
+      <select name="sort" class="form-select">
+        <option value="">Default (name)</option>
+        <option value="score_desc" {% if active_sort == 'score_desc' %}selected{% endif %}>Score — high to low</option>
+        <option value="score_asc"  {% if active_sort == 'score_asc'  %}selected{% endif %}>Score — low to high</option>
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn primary">Filter</button>
+      <a class="btn ghost" href="{% url 'core:tenant-list' %}">Reset</a>
+    </div>
+  </div>
+</form>
+
 <div class="card">
   <table class="data">
-    <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Sales Rep</th><th>Status</th><th></th></tr></thead>
+    <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Sales Rep</th><th>Score</th><th>Tier</th><th>Status</th><th></th></tr></thead>
     <tbody>
       {% for t in tenants %}
       <tr>
@@ -16,10 +64,16 @@
         <td>{{ t.phone }}</td>
         <td>{{ t.email|default:"—" }}</td>
         <td>{{ t.sales_rep.full_name|default:"—" }}</td>
+        <td class="num">{{ t.score.score|default:"—" }}</td>
+        <td>
+          {% if t.score %}
+            <span class="badge tier-{{ t.score.tier|lower }}">{{ t.score.get_tier_display }}</span>
+          {% else %}—{% endif %}
+        </td>
         <td><span class="badge {{ t.derived_status|lower }}">{{ t.derived_status }}</span></td>
         <td class="actions"><a href="{% url 'core:tenant-update' t.pk %}">Edit</a></td>
       </tr>
-      {% empty %}<tr><td colspan="6" class="muted">No tenants yet.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="8" class="muted">No tenants match.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>

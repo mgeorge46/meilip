@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import reports, views
 
 app_name = "billing"
 
@@ -34,8 +34,17 @@ urlpatterns = [
     # Receipts
     path("receipts/<int:pk>/", views.ReceiptDetailView.as_view(), name="receipt-detail"),
 
+    # Exit workflow (SPEC §20.5)
+    path("tenancies/<int:pk>/exit/", views.ExitWorkflowView.as_view(), name="exit-workflow"),
+
     # Reports
     path("reports/advances/", views.AdvancePaymentsReportView.as_view(), name="report-advances"),
+    path("reports/repairs/", reports.RepairsPerHouseReport.as_view(), name="report-repairs"),
+    path("reports/estate-costs/", reports.EstateCostReport.as_view(), name="report-estate-costs"),
+    path("reports/collections/", reports.CollectionPerformanceReport.as_view(), name="report-collections"),
+    path("reports/acquisition/", reports.TenantAcquisitionReport.as_view(), name="report-acquisition"),
+    path("reports/occupancy/", reports.OccupancyReport.as_view(), name="report-occupancy"),
+    path("reports/revenue/", reports.RevenueSummaryReport.as_view(), name="report-revenue"),
     path("tenancies/<int:pk>/statement/", views.TenantStatementView.as_view(), name="tenant-statement"),
     path("landlords/<int:pk>/statement/", views.LandlordStatementView.as_view(), name="landlord-statement"),
 ]

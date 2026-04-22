@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Notification Deliveries · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>Notification Deliveries</h1>
+  <p class="muted">Outbound SMS / WhatsApp / Email attempts across the platform. Filter by status to triage failures.</p>
+</section>
+
+<form method="get" class="card" style="padding:1rem;margin-bottom:1rem">
+  <div class="form-grid">
+    <div class="mb-3">
+      <label>Status</label>
+      <select name="status" class="form-select">
+        <option value="">All</option>
+        <option value="QUEUED"  {% if active_status == "QUEUED" %}selected{% endif %}>Queued</option>
+        <option value="SENDING" {% if active_status == "SENDING" %}selected{% endif %}>Sending</option>
+        <option value="SENT"    {% if active_status == "SENT" %}selected{% endif %}>Sent</option>
+        <option value="FAILED"  {% if active_status == "FAILED" %}selected{% endif %}>Failed</option>
+        <option value="SKIPPED" {% if active_status == "SKIPPED" %}selected{% endif %}>Skipped</option>
+      </select>
+    </div>
+    <div class="mb-3">
+      <label>Channel</label>
+      <select name="channel" class="form-select">
+        <option value="">All</option>
+        <option value="SMS"      {% if active_channel == "SMS" %}selected{% endif %}>SMS</option>
+        <option value="WHATSAPP" {% if active_channel == "WHATSAPP" %}selected{% endif %}>WhatsApp</option>
+        <option value="EMAIL"    {% if active_channel == "EMAIL" %}selected{% endif %}>Email</option>
+      </select>
+    </div>
+    <div class="mb-3">
+      <label>Template</label>
+      <select name="template" class="form-select">
+        <option value="">All</option>
+        <option value="PAYMENT_CONFIRMATION" {% if active_template == "PAYMENT_CONFIRMATION" %}selected{% endif %}>Payment confirmation</option>
+        <option value="RECEIPT"              {% if active_template == "RECEIPT" %}selected{% endif %}>Receipt</option>
+        <option value="OVERDUE_REMINDER"     {% if active_template == "OVERDUE_REMINDER" %}selected{% endif %}>Overdue reminder</option>
+        <option value="STATEMENT"            {% if active_template == "STATEMENT" %}selected{% endif %}>Statement</option>
+      </select>
+    </div>
+    <div class="mb-3 d-flex align-items-end">
+      <button type="submit" class="btn btn-primary">Filter</button>
+      <a class="btn ghost" href="{% url 'notifications:delivery-list' %}" style="margin-left:.5rem">Reset</a>
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  <table class="data">
+    <thead><tr>
+      <th>When</th><th>Template</th><th>Channel</th><th>Recipient</th>
+      <th>Status</th><th>Attempts</th><th></th>
+    </tr></thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.created_at }}</td>
+          <td>{{ row.get_template_display }}</td>
+          <td>{{ row.get_channel_display }}</td>
+          <td>{{ row.recipient }}</td>
+          <td>
+            <span class="badge {{ row.status|lower }}">{{ row.get_status_display }}</span>
+          </td>
+          <td>{{ row.attempt_count }}</td>
+          <td><a href="{% url 'notifications:delivery-detail' row.pk %}">Details</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="muted">No notifications have been sent yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% include "core/pagination.html" %}
+{% endblock %}

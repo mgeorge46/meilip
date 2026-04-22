@@ -25,7 +25,13 @@ from accounting.utils import (
     get_account,
     get_advance_holding_account,
 )
-from core.models import BillingCycle, BillingMode, ProRataMode
+from core.models import (
+    BillingCycle,
+    BillingMode,
+    ProRataMode,
+    UTILITY_FLAG_BY_KIND,
+    UTILITY_INCOME_SYSCODE_BY_KIND,
+)
 from core.utils import get_effective_setting
 
 from .exceptions import (
@@ -225,15 +231,34 @@ def generate_invoice_for_tenancy(tenancy, *, user=None, today=None, force=False)
         approval_status__in=[ApprovalStatus.APPROVED, ApprovalStatus.AUTO_APPROVED],
     )
     for charge in pending_adhoc:
+        target = (
+            InvoiceLine.TARGET_MEILI if charge.target == AdHocCharge.Target.MEILI
+            else InvoiceLine.TARGET_LANDLORD
+        )
+        # A utility charge becomes a UTILITY line only if the house/estate
+        # flag for that utility is True (separately billed). Otherwise it
+        # falls back to a regular AD_HOC line (bundled accounting).
+        if charge.utility_kind:
+            flag_name = UTILITY_FLAG_BY_KIND.get(charge.utility_kind)
+            flag_on = bool(flag_name and get_effective_setting(tenancy.house, flag_name))
+            if flag_on:
+                InvoiceLine.objects.create(
+                    invoice=invoice,
+                    kind=InvoiceLine.Kind.UTILITY,
+                    description=charge.description,
+                    amount=charge.amount,
+                    target=target,
+                    utility_kind=charge.utility_kind,
+                )
+                charge.attached_invoice = invoice
+                charge.save(update_fields=["attached_invoice", "updated_at"])
+                continue
         InvoiceLine.objects.create(
             invoice=invoice,
             kind=InvoiceLine.Kind.AD_HOC,
             description=charge.description,
             amount=charge.amount,
-            target=(
-                InvoiceLine.TARGET_MEILI if charge.target == AdHocCharge.Target.MEILI
-                else InvoiceLine.TARGET_LANDLORD
-            ),
+            target=target,
         )
         charge.attached_invoice = invoice
         charge.save(update_fields=["attached_invoice", "updated_at"])
@@ -269,7 +294,16 @@ def generate_invoice_for_tenancy(tenancy, *, user=None, today=None, force=False)
 
 
 def _issue_and_post(invoice, *, user=None):
-    """DRAFT → ISSUED + accrual journal."""
+    """DRAFT → ISSUED + accrual journal.
+
+    Revenue routing:
+    - Meili-owned, non-utility line     -> RENT_INCOME
+    - Meili-owned, UTILITY line         -> matching utility income (4310-4390)
+    - Managed, any landlord-target line -> LANDLORD_PAYABLE (landlord still
+      earns the utility; per-utility line description preserves the break-out
+      on the landlord statement)
+    - Any Meili-target line (ad-hoc)    -> RENT_INCOME (Meili service income)
+    """
     entry = JournalEntry.objects.create(
         entry_date=invoice.issue_date,
         memo=f"Invoice accrual (pending #{invoice.pk})",
@@ -284,27 +318,57 @@ def _issue_and_post(invoice, *, user=None):
     )
     landlord = invoice.tenant_house.house.effective_landlord
     meili_owned = bool(landlord and landlord.is_meili_owned)
-    # Split revenue by line target
-    landlord_total = Decimal("0")
+
+    # Tallies
+    landlord_non_utility_total = Decimal("0")
+    landlord_utility_totals = {}  # utility_kind -> amount
     meili_total = Decimal("0")
     for line in invoice.lines.all():
         if line.target == InvoiceLine.TARGET_MEILI:
             meili_total += line.amount
+            continue
+        if line.kind == InvoiceLine.Kind.UTILITY and line.utility_kind:
+            landlord_utility_totals[line.utility_kind] = (
+                landlord_utility_totals.get(line.utility_kind, Decimal("0")) + line.amount
+            )
         else:
-            landlord_total += line.amount
-    if landlord_total > 0:
+            landlord_non_utility_total += line.amount
+
+    # Non-utility landlord-side revenue
+    if landlord_non_utility_total > 0:
         if meili_owned:
             JournalEntryLine.objects.create(
                 entry=entry, account=get_account(SYS_RENT_INCOME),
-                debit=Decimal("0"), credit=landlord_total,
+                debit=Decimal("0"), credit=landlord_non_utility_total,
                 description="Rent income (Meili-owned)",
             )
         else:
             JournalEntryLine.objects.create(
                 entry=entry, account=get_account(SYS_LANDLORD_PAYABLE),
-                debit=Decimal("0"), credit=landlord_total,
+                debit=Decimal("0"), credit=landlord_non_utility_total,
                 description="Landlord payable (managed)",
             )
+
+    # Utility landlord-side revenue — break out to utility-income accounts
+    # only for Meili-owned. Managed properties still route to landlord payable
+    # (since the landlord is the one earning the utility fee).
+    for utility_kind, amt in landlord_utility_totals.items():
+        if amt <= 0:
+            continue
+        if meili_owned:
+            syscode = UTILITY_INCOME_SYSCODE_BY_KIND[utility_kind]
+            JournalEntryLine.objects.create(
+                entry=entry, account=get_account(syscode),
+                debit=Decimal("0"), credit=amt,
+                description=f"{utility_kind} income (Meili-owned)",
+            )
+        else:
+            JournalEntryLine.objects.create(
+                entry=entry, account=get_account(SYS_LANDLORD_PAYABLE),
+                debit=Decimal("0"), credit=amt,
+                description=f"Landlord payable — {utility_kind} (managed)",
+            )
+
     if meili_total > 0:
         JournalEntryLine.objects.create(
             entry=entry, account=get_account(SYS_RENT_INCOME),
@@ -374,6 +438,11 @@ def mark_overdue_invoices(*, today=None):
         if inv.outstanding > 0:
             inv.transition_to(Invoice.Status.OVERDUE)
             count += 1
+            try:
+                from notifications.tasks import send_overdue_reminder
+                send_overdue_reminder.delay(inv.pk)
+            except Exception:
+                pass
     return count
 
 
@@ -489,6 +558,13 @@ def apply_payment(payment: Payment, *, user=None):
         amount=payment.amount,
         created_by=user,
     )
+
+    # Fire confirmation notification — best-effort, never block the ledger.
+    try:
+        from notifications.tasks import send_payment_confirmation
+        send_payment_confirmation.delay(payment.pk)
+    except Exception:
+        pass
 
 
 @transaction.atomic

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Tenant Scores · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>Tenant Scores</h1>
+    <p class="muted">Internal risk dashboard — never shown to tenants or landlords.</p>
+  </div>
+</section>
+
+<form method="get" class="card" style="padding:1rem; margin-bottom:1rem;">
+  <div class="form-grid">
+    <div class="mb-3">
+      <label>Search</label>
+      <input type="text" name="q" value="{{ q }}" placeholder="Name / phone / email" class="form-control">
+    </div>
+    <div class="mb-3">
+      <label>Tier</label>
+      <select name="tier" class="form-select select2">
+        <option value="">All tiers</option>
+        {% for value, label in tiers %}
+          <option value="{{ value }}" {% if value == active_tier %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="mb-3 d-flex align-items-end">
+      <button type="submit" class="btn btn-primary">Filter</button>
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  <table class="data">
+    <thead><tr>
+      <th>Tenant</th><th>Phone</th><th>Score</th><th>Tier</th><th>Calculated</th>
+    </tr></thead>
+    <tbody>
+      {% for s in scores %}
+      <tr>
+        <td><a href="{% url 'core:tenant-detail' s.tenant.pk %}">{{ s.tenant.full_name }}</a></td>
+        <td>{{ s.tenant.phone }}</td>
+        <td class="num"><strong>{{ s.score }}</strong></td>
+        <td>
+          <span class="badge tier-{{ s.tier|lower }}">{{ s.get_tier_display }}</span>
+        </td>
+        <td>{{ s.calculated_at|date:"Y-m-d H:i" }}</td>
+      </tr>
+      {% empty %}<tr><td colspan="5" class="muted">No scores calculated yet. Run <code>python manage.py calculate_scores</code> or wait for the daily 02:00 job.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include "core/pagination.html" %}
+{% endblock %}

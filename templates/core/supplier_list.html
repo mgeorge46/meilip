@@ -6,9 +6,39 @@
   <div><a class="btn primary" href="{% url 'core:supplier-create' %}">+ New Supplier</a></div>
 </section>
 
+<form method="get" class="card filter-bar">
+  <div class="filter-grid">
+    <div>
+      <label>Search</label>
+      <input type="text" name="q" value="{{ filter_q }}" placeholder="Name, contact, phone, email, tax ID">
+    </div>
+    <div>
+      <label>Kind</label>
+      <select name="kind" class="form-select">
+        <option value="">Any</option>
+        {% for value, label in kind_choices %}
+        <option value="{{ value }}" {% if filter_kind == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Active</label>
+      <select name="active" class="form-select">
+        <option value="">Any</option>
+        <option value="yes" {% if filter_active == 'yes' %}selected{% endif %}>Active</option>
+        <option value="no"  {% if filter_active == 'no'  %}selected{% endif %}>Inactive</option>
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn primary">Filter</button>
+      <a class="btn ghost" href="{% url 'core:supplier-list' %}">Reset</a>
+    </div>
+  </div>
+</form>
+
 <div class="card">
   <table class="data">
-    <thead><tr><th>Name</th><th>Kind</th><th>Contact</th><th>Phone</th><th>Active</th><th></th></tr></thead>
+    <thead><tr><th>Name</th><th>Kind</th><th>Contact</th><th>Phone</th><th>Email</th><th>Active</th><th></th></tr></thead>
     <tbody>
       {% for s in suppliers %}
       <tr>
@@ -16,10 +46,11 @@
         <td>{{ s.get_kind_display }}</td>
         <td>{{ s.contact_person|default:"—" }}</td>
         <td>{{ s.phone|default:"—" }}</td>
+        <td>{{ s.email|default:"—" }}</td>
         <td>{% if s.is_active %}<span class="badge active">Yes</span>{% else %}<span class="badge exited">No</span>{% endif %}</td>
         <td class="actions"><a href="{% url 'core:supplier-update' s.pk %}">Edit</a></td>
       </tr>
-      {% empty %}<tr><td colspan="6" class="muted">No suppliers yet.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="7" class="muted">No suppliers match.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>

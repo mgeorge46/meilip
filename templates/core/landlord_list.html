@@ -6,6 +6,36 @@
   <div><a class="btn primary" href="{% url 'core:landlord-create' %}">+ New Landlord</a></div>
 </section>
 
+<form method="get" class="card filter-bar">
+  <div class="filter-grid">
+    <div>
+      <label>Search</label>
+      <input type="text" name="q" value="{{ filter_q }}" placeholder="Name, phone, email, ID">
+    </div>
+    <div>
+      <label>Status</label>
+      <select name="status" class="form-select">
+        <option value="">Any</option>
+        {% for value, label in status_choices %}
+        <option value="{{ value }}" {% if filter_status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Ownership</label>
+      <select name="owned" class="form-select">
+        <option value="">Any</option>
+        <option value="meili"    {% if filter_owned == 'meili' %}selected{% endif %}>Meili-owned</option>
+        <option value="external" {% if filter_owned == 'external' %}selected{% endif %}>External</option>
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn primary">Filter</button>
+      <a class="btn ghost" href="{% url 'core:landlord-list' %}">Reset</a>
+    </div>
+  </div>
+</form>
+
 <div class="card">
   <table class="data">
     <thead>
@@ -22,7 +52,7 @@
         <td class="actions"><a href="{% url 'core:landlord-update' l.pk %}">Edit</a></td>
       </tr>
       {% empty %}
-      <tr><td colspan="6" class="muted">No landlords yet.</td></tr>
+      <tr><td colspan="6" class="muted">No landlords match.</td></tr>
       {% endfor %}
     </tbody>
   </table>

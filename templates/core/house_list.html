@@ -6,6 +6,37 @@
   <div><a class="btn primary" href="{% url 'core:house-create' %}">+ New House</a></div>
 </section>
 
+<form method="get" class="card filter-bar">
+  <div class="filter-grid">
+    <div>
+      <label>Search</label>
+      <input type="text" name="q" value="{{ filter_q }}" placeholder="House #, name, estate">
+    </div>
+    <div>
+      <label>Estate</label>
+      <select name="estate" class="form-select select2">
+        <option value="">Any</option>
+        {% for est in estates %}
+        <option value="{{ est.pk }}" {% if filter_estate == est.pk|stringformat:'s' %}selected{% endif %}>{{ est.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Occupancy</label>
+      <select name="occupancy" class="form-select">
+        <option value="">Any</option>
+        {% for value, label in occupancy_choices %}
+        <option value="{{ value }}" {% if filter_occupancy == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn primary">Filter</button>
+      <a class="btn ghost" href="{% url 'core:house-list' %}">Reset</a>
+    </div>
+  </div>
+</form>
+
 <div class="card">
   <table class="data">
     <thead><tr><th>#</th><th>Name</th><th>Estate</th><th>Landlord</th><th>Rent</th><th>Occupancy</th><th></th></tr></thead>
@@ -20,7 +51,7 @@
         <td><span class="badge {{ h.occupancy_status|lower }}">{{ h.get_occupancy_status_display }}</span></td>
         <td class="actions"><a href="{% url 'core:house-update' h.pk %}">Edit</a></td>
       </tr>
-      {% empty %}<tr><td colspan="7" class="muted">No houses yet.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="7" class="muted">No houses match.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>

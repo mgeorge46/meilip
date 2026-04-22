@@ -1,27 +1,254 @@
 {% extends "base.html" %}
+{% load humanize %}
 {% block title %}Dashboard · Meili Property{% endblock %}
+
 {% block content %}
-<section class="page-header">
-  <h1>Welcome, {{ request.user.first_name|default:request.user.email }}</h1>
-  <p class="muted">Meili Property Solution — operations overview</p>
+<section class="page-header between">
+  <div>
+    <h1>Welcome, {{ request.user.first_name|default:request.user.email }}</h1>
+    <p class="muted">Live operations overview — numbers update with every payment, invoice and notification.</p>
+  </div>
+  <div class="actions">
+    <button class="btn" type="button" id="dashRefresh" title="Refresh KPIs">↻ Refresh</button>
+    <a class="btn ghost" href="{% url 'dashboard:search' %}">Global search</a>
+  </div>
 </section>
 
-<div class="cards-grid">
-  <div class="card">
-    <div class="card-label">Your roles</div>
-    <div class="card-value">
-      {% for r in user_role_names %}<span class="badge">{{ r }}</span>{% empty %}<span class="muted">No roles assigned</span>{% endfor %}
+{# ------------------------ STAT CARDS ------------------------ #}
+<div class="kpi-grid">
+  {% for c in cards %}
+    <div class="kpi-card tone-{{ c.tone }}">
+      <div class="kpi-label">{{ c.label }}</div>
+      <div class="kpi-value" data-key="{{ forloop.counter0 }}" data-format="{{ c.format }}">
+        {% if c.format == "ugx" %}UGX {{ c.value|intcomma }}
+        {% elif c.format == "pct" %}{% if c.value is None %}—{% else %}{{ c.value }}%{% endif %}
+        {% else %}{{ c.value|intcomma }}{% endif %}
+      </div>
+      {% if c.sub_value is not None %}
+        <div class="kpi-sub">UGX {{ c.sub_value|intcomma }} outstanding</div>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
+
+<div class="dashboard-grid">
+  {# ------------------------ REVENUE TREND (12mo) ------------------------ #}
+  <div class="card dashboard-card span-2">
+    <div class="card-header">
+      <h2>Billed vs Collected — last 12 months</h2>
+      <span class="muted">UGX, monthly</span>
+    </div>
+    <svg id="trendChart" viewBox="0 0 720 260" preserveAspectRatio="xMidYMid meet" class="chart-svg" role="img" aria-label="Revenue trend chart"></svg>
+    <div class="chart-legend">
+      <span class="legend-item"><span class="dot dot-billed"></span>Billed</span>
+      <span class="legend-item"><span class="dot dot-collected"></span>Collected</span>
     </div>
   </div>
-  <div class="card">
-    <div class="card-label">Quick links</div>
-    <ul class="plain-list">
-      <li><a href="{% url 'core:tenant-list' %}">Tenants</a></li>
-      <li><a href="{% url 'core:house-list' %}">Houses</a></li>
-      <li><a href="{% url 'core:estate-list' %}">Estates</a></li>
-      <li><a href="{% url 'accounting:account-list' %}">Chart of Accounts</a></li>
-      <li><a href="{% url 'accounting:commission-report' %}">Commission Report</a></li>
-    </ul>
+
+  {# ------------------------ AR AGEING ------------------------ #}
+  <div class="card dashboard-card">
+    <div class="card-header">
+      <h2>AR Ageing</h2>
+      <span class="muted">Outstanding by bucket</span>
+    </div>
+    <svg id="ageingChart" viewBox="0 0 360 220" preserveAspectRatio="xMidYMid meet" class="chart-svg" role="img" aria-label="AR ageing chart"></svg>
+    <table class="data compact">
+      <thead><tr><th>Bucket</th><th class="right">UGX</th></tr></thead>
+      <tbody>
+      {% for b in ageing %}
+        <tr><td>{{ b.label }}</td><td class="right">{{ b.amount|intcomma }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# ------------------------ NOTIFICATION HEALTH ------------------------ #}
+  <div class="card dashboard-card">
+    <div class="card-header">
+      <h2>Notification health</h2>
+      <span class="muted">Last 7 days</span>
+    </div>
+    <div class="notif-ring">
+      <div class="ring" style="--pct: {{ notif.success_rate|default:0 }};">
+        <div class="ring-center">
+          <div class="ring-value">{% if notif.success_rate is None %}—{% else %}{{ notif.success_rate }}%{% endif %}</div>
+          <div class="ring-sub">success</div>
+        </div>
+      </div>
+      <ul class="notif-breakdown">
+        <li><span class="badge posted">Sent</span> <strong>{{ notif.sent|intcomma }}</strong></li>
+        <li><span class="badge overdue">Failed</span> <strong>{{ notif.failed|intcomma }}</strong></li>
+        <li><span class="badge pending">Queued</span> <strong>{{ notif.queued|intcomma }}</strong></li>
+        <li><span class="badge neutral">Total</span> <strong>{{ notif.total|intcomma }}</strong></li>
+      </ul>
+    </div>
+    <p><a href="{% url 'notifications:delivery-list' %}">Open delivery log →</a></p>
+  </div>
+
+  {# ------------------------ TOP ARREARS ------------------------ #}
+  <div class="card dashboard-card">
+    <div class="card-header">
+      <h2>Top arrears</h2>
+      <span class="muted">Tenants by outstanding balance</span>
+    </div>
+    <table class="data compact">
+      <thead><tr><th>Tenant</th><th class="right">Outstanding</th><th>Oldest due</th></tr></thead>
+      <tbody>
+      {% for r in top_arrears %}
+        <tr>
+          <td><a href="{% url 'core:tenant-detail' r.tenant_id %}">{{ r.tenant_name }}</a></td>
+          <td class="right">{{ r.outstanding|intcomma }}</td>
+          <td>{{ r.oldest_due }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3" class="muted">No outstanding tenants — collections are current.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# ------------------------ RECENT PAYMENTS ------------------------ #}
+  <div class="card dashboard-card span-2">
+    <div class="card-header">
+      <h2>Recent payments</h2>
+      <a class="muted" href="{% url 'billing:report-collections' %}">Collections report →</a>
+    </div>
+    <table class="data compact">
+      <thead><tr><th>Receipt</th><th>Tenant</th><th>Method</th><th class="right">Amount</th><th>Received</th></tr></thead>
+      <tbody>
+      {% for p in recent_payments %}
+        <tr>
+          <td>{{ p.number }}</td>
+          <td>{{ p.tenant }}</td>
+          <td>{{ p.method }}</td>
+          <td class="right">{{ p.amount|intcomma }}</td>
+          <td>{{ p.received_at }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="muted">No payments recorded yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
+
+{{ trend_json|json_script:"trend-data" }}
+{{ ageing_json|json_script:"ageing-data" }}
+
+<script>
+(function () {
+  // --- tiny chart renderers (pure SVG, no frameworks) --------------------
+  function renderTrend(data, svgId) {
+    var svg = document.getElementById(svgId);
+    if (!svg || !data || !data.length) return;
+    var W = 720, H = 260, P = 32;
+    var maxV = 0;
+    data.forEach(function (d) {
+      maxV = Math.max(maxV, d.billed || 0, d.collected || 0);
+    });
+    if (maxV === 0) maxV = 1;
+    var innerW = W - P * 2, innerH = H - P * 2;
+    var slot = innerW / data.length;
+    var barW = Math.max(4, slot / 3);
+
+    var ns = "http://www.w3.org/2000/svg";
+    svg.innerHTML = "";
+    // gridlines + labels
+    for (var g = 0; g <= 4; g++) {
+      var y = P + innerH - (innerH * g / 4);
+      var ln = document.createElementNS(ns, "line");
+      ln.setAttribute("x1", P); ln.setAttribute("x2", W - P);
+      ln.setAttribute("y1", y); ln.setAttribute("y2", y);
+      ln.setAttribute("stroke", "#e5e7eb");
+      svg.appendChild(ln);
+      var lbl = document.createElementNS(ns, "text");
+      lbl.setAttribute("x", 4); lbl.setAttribute("y", y + 4);
+      lbl.setAttribute("font-size", "10"); lbl.setAttribute("fill", "#6b7280");
+      lbl.textContent = Math.round((maxV * g / 4) / 1000).toLocaleString() + "k";
+      svg.appendChild(lbl);
+    }
+    data.forEach(function (d, i) {
+      var x = P + slot * i + slot / 2;
+      var bh = (d.billed || 0) / maxV * innerH;
+      var ch = (d.collected || 0) / maxV * innerH;
+      var b = document.createElementNS(ns, "rect");
+      b.setAttribute("x", x - barW - 1); b.setAttribute("y", P + innerH - bh);
+      b.setAttribute("width", barW); b.setAttribute("height", bh);
+      b.setAttribute("fill", "#3b82f6"); b.setAttribute("rx", 2);
+      b.appendChild(document.createElementNS(ns, "title"));
+      b.lastChild.textContent = d.label + "  billed: " + (d.billed || 0).toLocaleString();
+      svg.appendChild(b);
+      var c = document.createElementNS(ns, "rect");
+      c.setAttribute("x", x + 1); c.setAttribute("y", P + innerH - ch);
+      c.setAttribute("width", barW); c.setAttribute("height", ch);
+      c.setAttribute("fill", "#10b981"); c.setAttribute("rx", 2);
+      c.appendChild(document.createElementNS(ns, "title"));
+      c.lastChild.textContent = d.label + "  collected: " + (d.collected || 0).toLocaleString();
+      svg.appendChild(c);
+      var t = document.createElementNS(ns, "text");
+      t.setAttribute("x", x); t.setAttribute("y", H - 8);
+      t.setAttribute("text-anchor", "middle"); t.setAttribute("font-size", "10");
+      t.setAttribute("fill", "#6b7280");
+      t.textContent = d.label;
+      svg.appendChild(t);
+    });
+  }
+
+  function renderAgeing(buckets, svgId) {
+    var svg = document.getElementById(svgId);
+    if (!svg || !buckets || !buckets.length) return;
+    var W = 360, H = 220, P = 30;
+    var max = 1;
+    buckets.forEach(function (b) { if (b.amount > max) max = b.amount; });
+    var ns = "http://www.w3.org/2000/svg";
+    var innerW = W - P * 2, innerH = H - P * 2;
+    var slot = innerW / buckets.length;
+    var colors = ["#6b7280", "#10b981", "#f59e0b", "#f97316", "#ef4444"];
+    svg.innerHTML = "";
+    buckets.forEach(function (b, i) {
+      var h = (b.amount / max) * innerH;
+      var x = P + slot * i + slot * 0.15;
+      var w = slot * 0.7;
+      var r = document.createElementNS(ns, "rect");
+      r.setAttribute("x", x); r.setAttribute("y", P + innerH - h);
+      r.setAttribute("width", w); r.setAttribute("height", h);
+      r.setAttribute("fill", colors[i % colors.length]); r.setAttribute("rx", 3);
+      r.appendChild(document.createElementNS(ns, "title"));
+      r.lastChild.textContent = b.label + ":  UGX " + b.amount.toLocaleString();
+      svg.appendChild(r);
+      var t = document.createElementNS(ns, "text");
+      t.setAttribute("x", x + w / 2); t.setAttribute("y", H - 8);
+      t.setAttribute("text-anchor", "middle"); t.setAttribute("font-size", "10");
+      t.setAttribute("fill", "#6b7280");
+      t.textContent = b.label;
+      svg.appendChild(t);
+    });
+  }
+
+  var trend = JSON.parse(document.getElementById("trend-data").textContent);
+  var ageing = JSON.parse(document.getElementById("ageing-data").textContent);
+  renderTrend(trend, "trendChart");
+  renderAgeing(ageing, "ageingChart");
+
+  var btn = document.getElementById("dashRefresh");
+  if (btn) {
+    btn.addEventListener("click", function () {
+      btn.disabled = true;
+      btn.textContent = "⟳ Refreshing...";
+      fetch("{% url 'dashboard:kpi-api' %}", {credentials: "same-origin"})
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          renderTrend(data.trend, "trendChart");
+          renderAgeing(data.ageing, "ageingChart");
+          btn.textContent = "✓ Updated";
+          setTimeout(function () { btn.textContent = "↻ Refresh"; btn.disabled = false; }, 1200);
+        })
+        .catch(function () {
+          btn.textContent = "✗ Failed — retry";
+          btn.disabled = false;
+        });
+    });
+  }
+})();
+</script>
 {% endblock %}

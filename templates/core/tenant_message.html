@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% load widget_tweaks %}
+{% block title %}Message {{ tenant.full_name }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>Message {{ tenant.full_name }}</h1>
+    <p class="muted">
+      Phone {{ tenant.phone|default:"—" }} · Email {{ tenant.email|default:"—" }}
+      · Preferred: {{ tenant.get_preferred_notification_display }}
+    </p>
+  </div>
+  <div>
+    <a class="btn ghost" href="{% url 'core:tenant-detail' tenant.pk %}">Cancel</a>
+  </div>
+</section>
+
+<form method="post" class="card" style="padding:1.25rem;max-width:720px">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <div class="mb-3">
+    <label class="form-label">Channel</label>
+    {{ form.channel|add_class:"form-select" }}
+    {{ form.channel.errors }}
+  </div>
+
+  <div class="mb-3" id="subject-row">
+    <label class="form-label">Subject <span class="muted">(email only)</span></label>
+    {{ form.subject|add_class:"form-control" }}
+    {{ form.subject.errors }}
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Message</label>
+    {{ form.message|add_class:"form-control" }}
+    <div class="muted" style="font-size:0.85em">Max 1500 characters.</div>
+    {{ form.message.errors }}
+  </div>
+
+  <div class="form-actions">
+    <button class="btn primary" type="submit">Send now</button>
+    <a class="btn ghost" href="{% url 'core:tenant-detail' tenant.pk %}">Cancel</a>
+  </div>
+
+  <p class="muted" style="margin-top:1rem;font-size:0.85em">
+    Every send is logged in the Audit Log and the Notifications delivery log.
+  </p>
+</form>
+
+<script>
+  (function () {
+    var channel = document.getElementById("{{ form.channel.id_for_label }}");
+    var subjectRow = document.getElementById("subject-row");
+    function refresh() {
+      subjectRow.style.display = channel.value === "EMAIL" ? "" : "none";
+    }
+    if (channel && subjectRow) { channel.addEventListener("change", refresh); refresh(); }
+  })();
+</script>
+{% endblock %}

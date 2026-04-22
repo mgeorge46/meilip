@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Audit log · Meili Property{% endblock %}
+
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>Audit log</h1>
+    <p class="muted">Append-only record of user actions — IP, user-agent, and target captured per event.</p>
+  </div>
+</section>
+
+<form method="get" class="filters">
+  <div class="filter-row">
+    <label>Actor
+      <input type="text" name="actor" value="{{ filters.actor }}" placeholder="email contains...">
+    </label>
+    <label>Action
+      <select name="action">
+        <option value="">Any</option>
+        {% for value, label in action_choices %}
+          <option value="{{ value }}" {% if filters.action == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Target type
+      <select name="target_type">
+        <option value="">Any</option>
+        {% for t in target_types %}
+          <option value="{{ t }}" {% if filters.target_type == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>From
+      <input type="date" name="from" value="{{ filters.from }}">
+    </label>
+    <label>To
+      <input type="date" name="to" value="{{ filters.to }}">
+    </label>
+    <label>Page size
+      <select name="page_size">
+        {% for s in page_sizes %}
+          <option value="{{ s }}" {% if filters.page_size == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="actions">
+      <button class="btn" type="submit">Apply</button>
+      <a class="btn ghost" href="{% url 'accounts:audit-log' %}">Reset</a>
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  <table class="data compact">
+    <thead>
+      <tr>
+        <th>When</th>
+        <th>Actor</th>
+        <th>Action</th>
+        <th>Target</th>
+        <th>Path</th>
+        <th>IP</th>
+        <th>User-Agent</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in page.object_list %}
+        <tr>
+          <td>{{ r.timestamp|date:"Y-m-d H:i:s" }}</td>
+          <td>{% if r.actor %}{{ r.actor.email }}{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td><span class="badge neutral">{{ r.get_action_display }}</span></td>
+          <td>
+            {% if r.target_type %}
+              {{ r.target_type }}{% if r.target_id %} #{{ r.target_id }}{% endif %}
+              {% if r.target_repr %}<br><span class="muted">{{ r.target_repr }}</span>{% endif %}
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
+          <td><code>{{ r.method }} {{ r.path|truncatechars:40 }}</code></td>
+          <td>{{ r.ip_address|default:"—" }}</td>
+          <td><span class="muted" title="{{ r.user_agent }}">{{ r.user_agent|truncatechars:40|default:"—" }}</span></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="muted">No audit entries match these filters.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if page.paginator.num_pages > 1 %}
+<nav class="pagination">
+  {% if page.has_previous %}
+    <a class="btn ghost" href="?{% for k, v in filters.items %}{% if v %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page.previous_page_number }}">← Previous</a>
+  {% endif %}
+  <span class="muted">Page {{ page.number }} of {{ page.paginator.num_pages }} · {{ page.paginator.count }} total</span>
+  {% if page.has_next %}
+    <a class="btn ghost" href="?{% for k, v in filters.items %}{% if v %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page.next_page_number }}">Next →</a>
+  {% endif %}
+</nav>
+{% endif %}
+{% endblock %}

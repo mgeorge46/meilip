@@ -9,12 +9,15 @@ from django.urls import reverse
 
 from accounting.utils import (
     SYS_ALLOWANCES_EXPENSE,
-    SYS_NSSF_EMPLOYER_EXPENSE,
-    SYS_NSSF_PAYABLE,
+    SYS_ELECTRICITY_INCOME,
+    SYS_GARBAGE_INCOME,
+    SYS_OTHER_UTILITY_INCOME,
     SYS_PAYE_PAYABLE,
     SYS_SALARIES_EXPENSE,
     SYS_SALARIES_PAYABLE,
+    SYS_SECURITY_INCOME,
     SYS_STAFF_ADVANCES_RECEIVABLE,
+    SYS_WATER_INCOME,
     get_account,
 )
 from billing.models import Invoice
@@ -194,10 +197,22 @@ class PayrollChartOfAccountsTests(TestCase):
             SYS_STAFF_ADVANCES_RECEIVABLE,
             SYS_SALARIES_PAYABLE,
             SYS_PAYE_PAYABLE,
-            SYS_NSSF_PAYABLE,
             SYS_SALARIES_EXPENSE,
             SYS_ALLOWANCES_EXPENSE,
-            SYS_NSSF_EMPLOYER_EXPENSE,
+        ):
+            acct = get_account(code)
+            self.assertTrue(acct.is_active, f"{code} should be active")
+            self.assertTrue(acct.is_postable, f"{code} should be postable")
+
+
+class UtilityIncomeChartOfAccountsTests(TestCase):
+    def test_all_utility_income_accounts_seeded(self):
+        for code in (
+            SYS_WATER_INCOME,
+            SYS_GARBAGE_INCOME,
+            SYS_SECURITY_INCOME,
+            SYS_ELECTRICITY_INCOME,
+            SYS_OTHER_UTILITY_INCOME,
         ):
             acct = get_account(code)
             self.assertTrue(acct.is_active, f"{code} should be active")

@@ -8,6 +8,7 @@
   </div>
   <div>
     <a class="btn ghost" href="{% url 'core:tenant-list' %}">Back</a>
+    <a class="btn ghost" href="{% url 'core:tenant-message' tenant.pk %}">Message tenant</a>
     <a class="btn primary" href="{% url 'core:tenant-update' tenant.pk %}">Edit</a>
   </div>
 </section>
@@ -21,6 +22,30 @@
     <dt>Sales rep</dt><dd>{{ tenant.sales_rep.full_name|default:"—" }}</dd>
   </dl>
 </div>
+
+{% if tenant.score %}
+<div class="card">
+  <div class="between">
+    <h2>Credit score</h2>
+    <span class="badge tier-{{ tenant.score.tier|lower }}">{{ tenant.score.get_tier_display }}</span>
+  </div>
+  <p><strong style="font-size:2rem">{{ tenant.score.score }}</strong> / 100 <span class="muted">(calculated {{ tenant.score.calculated_at|date:"Y-m-d H:i" }})</span></p>
+  <table class="data">
+    <thead><tr><th>Component</th><th class="num">Points</th></tr></thead>
+    <tbody>
+      {% for key, pts in tenant.score.breakdown.components.items %}
+      <tr>
+        <td>{{ key|title }}</td>
+        <td class="num">{{ pts }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if tenant.score.breakdown.new_tenant_neutral %}
+  <p class="muted">Neutral score applied — tenant has no billed invoices yet.</p>
+  {% endif %}
+</div>
+{% endif %}
 
 <div class="card">
   <div class="between">
@@ -42,9 +67,10 @@
                 {% csrf_token %}<button class="btn ghost small" type="submit">Activate</button>
               </form>
             {% elif th.status == 'ACTIVE' %}
+              <a class="btn ghost small" href="{% url 'billing:exit-workflow' th.pk %}">Exit workflow</a>
               <form method="post" action="{% url 'core:tenancy-exit' th.pk %}" class="inline"
-                    onsubmit="return confirm('Mark this tenancy as exited?');">
-                {% csrf_token %}<button class="btn ghost small" type="submit">Exit</button>
+                    onsubmit="return confirm('Mark this tenancy as exited WITHOUT settlement? (Use Exit workflow for proper refund path.)');">
+                {% csrf_token %}<button class="btn ghost small" type="submit">Quick exit</button>
               </form>
             {% endif %}
           </td>

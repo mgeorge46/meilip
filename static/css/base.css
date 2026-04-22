@@ -362,3 +362,127 @@ form.inline { display: inline; }
 .app-shell.collapsed .sidebar-brand { justify-content: center; padding: var(--space-3) 0; gap: 0; }
 .app-shell.collapsed .sidebar-brand img { display: none; }
 .app-shell.collapsed .sidebar-toggle { margin-left: 0; }
+
+/* ---------- Tenant score tier badges (Phase 7) ---------- */
+.badge.tier-platinum { background: #6b7bff; color: #fff; }
+.badge.tier-gold     { background: #d4a017; color: #fff; }
+.badge.tier-silver   { background: #8a8f99; color: #fff; }
+.badge.tier-bronze   { background: #a05a2c; color: #fff; }
+.badge.tier-watch    { background: #c0392b; color: #fff; }
+
+/* ---------- Dashboard (Phase 8) ---------- */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+.kpi-card {
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--neutral-300);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.kpi-card:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.06); }
+.kpi-label { color: var(--text-muted); font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--space-2); }
+.kpi-value { font-size: var(--text-2xl); font-weight: 700; color: var(--neutral-800); font-variant-numeric: tabular-nums; }
+.kpi-sub   { margin-top: var(--space-2); color: var(--text-muted); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.kpi-card.tone-success { border-left-color: #10b981; }
+.kpi-card.tone-warning { border-left-color: #f59e0b; }
+.kpi-card.tone-danger  { border-left-color: #ef4444; }
+.kpi-card.tone-neutral { border-left-color: #6b7280; }
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+.dashboard-card { padding: var(--space-4); }
+.dashboard-card.span-2 { grid-column: span 2; }
+@media (max-width: 1000px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .dashboard-card.span-2 { grid-column: span 1; }
+}
+
+.card-header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-3); margin-bottom: var(--space-3);
+}
+.card-header h2 { margin: 0; font-size: var(--text-lg); }
+
+.chart-svg { width: 100%; height: auto; display: block; }
+.chart-legend { display: flex; gap: var(--space-4); padding-top: var(--space-2); font-size: var(--text-sm); color: var(--text-muted); }
+.legend-item { display: inline-flex; align-items: center; gap: var(--space-2); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--neutral-400); }
+.dot-billed    { background: #3b82f6; }
+.dot-collected { background: #10b981; }
+
+/* Notification ring widget */
+.notif-ring { display: flex; align-items: center; gap: var(--space-5); padding: var(--space-2) 0; }
+.ring {
+  --pct: 0;
+  --ring-size: 120px;
+  width: var(--ring-size); height: var(--ring-size);
+  border-radius: 50%;
+  background:
+    conic-gradient(#10b981 calc(var(--pct) * 1%), #e5e7eb 0);
+  display: flex; align-items: center; justify-content: center;
+  flex: 0 0 var(--ring-size);
+}
+.ring-center {
+  width: calc(var(--ring-size) - 28px); height: calc(var(--ring-size) - 28px);
+  border-radius: 50%; background: var(--bg-card, #fff);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.ring-value { font-size: var(--text-xl); font-weight: 700; color: var(--neutral-800); font-variant-numeric: tabular-nums; }
+.ring-sub   { font-size: var(--text-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.notif-breakdown { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-2); flex: 1; }
+.notif-breakdown li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.notif-breakdown strong { font-variant-numeric: tabular-nums; }
+
+.badge.neutral { background: var(--neutral-200); color: var(--neutral-700); }
+.badge.pending { background: #fff3cd; color: #7a5a00; }
+.badge.overdue { background: #f8d7da; color: #842029; }
+
+/* Compact data tables used by dashboard */
+table.data.compact { width: 100%; border-collapse: collapse; }
+table.data.compact th,
+table.data.compact td {
+  padding: var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+table.data.compact th { text-align: left; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-size: var(--text-xs); }
+
+/* ---------- Coming soon / roadmap (Phase 8) ---------- */
+.coming-soon { max-width: 760px; margin: 0 auto; padding: var(--space-6) 0; }
+.coming-soon .lede { font-size: var(--text-lg); color: var(--text-muted); margin-bottom: var(--space-4); }
+.roadmap-list { list-style: none; padding: 0; margin: var(--space-4) 0; display: grid; gap: var(--space-3); }
+.roadmap-list li {
+  border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); background: var(--bg-card, #fff);
+}
+.roadmap-list li.current { border-left: 4px solid var(--primary); }
+.roadmap-list .feature-name { font-weight: 600; color: var(--neutral-800); }
+.roadmap-list .feature-desc { color: var(--text-muted); font-size: var(--text-sm); margin-top: var(--space-1); }
+
+/* ---------- List filter bar (Phase 8.1) ---------- */
+.filter-bar { padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); }
+.filter-grid {
+  display: grid; gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: end;
+}
+.filter-grid label {
+  display: block; font-size: var(--text-xs); color: var(--text-muted);
+  margin-bottom: var(--space-1); text-transform: uppercase; letter-spacing: 0.04em;
+}
+.filter-grid input[type="text"],
+.filter-grid input[type="date"],
+.filter-grid input[type="datetime-local"],
+.filter-grid input[type="time"],
+.filter-grid select { width: 100%; }
+.filter-actions { display: flex; gap: var(--space-2); align-items: center; }

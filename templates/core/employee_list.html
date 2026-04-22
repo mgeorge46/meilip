@@ -6,20 +6,59 @@
   <div><a class="btn primary" href="{% url 'core:employee-create' %}">+ New Employee</a></div>
 </section>
 
+<form method="get" class="card filter-bar">
+  <div class="filter-grid">
+    <div>
+      <label>Search</label>
+      <input type="text" name="q" value="{{ filter_q }}" placeholder="Name, phone, job title, ID">
+    </div>
+    <div>
+      <label>Active</label>
+      <select name="active" class="form-select">
+        <option value="">Any</option>
+        <option value="yes" {% if filter_active == 'yes' %}selected{% endif %}>Active</option>
+        <option value="no"  {% if filter_active == 'no'  %}selected{% endif %}>Inactive</option>
+      </select>
+    </div>
+    <div>
+      <label>Trusted</label>
+      <select name="trusted" class="form-select">
+        <option value="">Any</option>
+        <option value="yes" {% if filter_trusted == 'yes' %}selected{% endif %}>Trusted (self-approve)</option>
+        <option value="no"  {% if filter_trusted == 'no'  %}selected{% endif %}>Requires checker</option>
+      </select>
+    </div>
+    <div>
+      <label>Employment</label>
+      <select name="employment_type" class="form-select">
+        <option value="">Any</option>
+        {% for value, label in employment_type_choices %}
+        <option value="{{ value }}" {% if filter_employment_type == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn primary">Filter</button>
+      <a class="btn ghost" href="{% url 'core:employee-list' %}">Reset</a>
+    </div>
+  </div>
+</form>
+
 <div class="card">
   <table class="data">
-    <thead><tr><th>Name</th><th>Phone</th><th>Manager</th><th>Trusted</th><th>Active</th><th></th></tr></thead>
+    <thead><tr><th>Name</th><th>Job title</th><th>Phone</th><th>Manager</th><th>Trusted</th><th>Active</th><th></th></tr></thead>
     <tbody>
       {% for e in employees %}
       <tr>
         <td><a href="{% url 'core:employee-detail' e.pk %}">{{ e.full_name }}</a></td>
+        <td>{{ e.job_title|default:"—" }}</td>
         <td>{{ e.phone|default:"—" }}</td>
         <td>{{ e.manager.full_name|default:"—" }}</td>
         <td>{% if not e.requires_checker %}<span class="badge active">Trusted</span>{% else %}—{% endif %}</td>
         <td>{% if e.is_active %}<span class="badge active">Yes</span>{% else %}<span class="badge exited">No</span>{% endif %}</td>
         <td class="actions"><a href="{% url 'core:employee-update' e.pk %}">Edit</a></td>
       </tr>
-      {% empty %}<tr><td colspan="6" class="muted">No employees yet.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="7" class="muted">No employees match.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>

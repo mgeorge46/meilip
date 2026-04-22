@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Exit — {{ tenancy }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>Tenant Exit Settlement</h1>
+    <p class="muted">SPEC §20.5 strict-order closeout — {{ tenancy.tenant.full_name }} @ {{ tenancy.house }}</p>
+  </div>
+  <div><a class="btn" href="{% url 'core:tenant-detail' tenancy.tenant_id %}">Back to tenant</a></div>
+</section>
+
+<div class="card" style="padding:1rem;margin-bottom:1rem">
+  <h2>Starting balances</h2>
+  <dl class="kv">
+    <dt>Held advance — Managed</dt><dd class="num">{{ comp.held_managed }} UGX</dd>
+    <dt>Held advance — Meili-owned</dt><dd class="num">{{ comp.held_meili }} UGX</dd>
+    <dt>Security deposit balance</dt><dd class="num">{{ comp.deposit_balance }} UGX</dd>
+    <dt>Outstanding on this tenancy</dt><dd class="num">{{ comp.outstanding_total }} UGX</dd>
+  </dl>
+</div>
+
+<form method="post" class="card" style="padding:1rem;margin-bottom:1rem">
+  {% csrf_token %}
+  <h2>Step 1 — Outstanding invoices (auto-paid by held advance)</h2>
+  <table class="data">
+    <thead><tr><th>Invoice</th><th>Due</th><th class="num">Outstanding</th></tr></thead>
+    <tbody>
+      {% for inv, out in comp.outstanding_invoices %}
+      <tr>
+        <td>{{ inv.number|default:inv.pk }}</td>
+        <td>{{ inv.due_date }}</td>
+        <td class="num">{{ out }} UGX</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" class="muted">No outstanding invoices.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Step 2 — Damages / ad-hoc charges at exit</h2>
+  <table class="data" id="damages-tbl">
+    <thead><tr><th>Description</th><th>Amount (UGX)</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><input name="damage_description" type="text" class="form-control"></td>
+        <td><input name="damage_amount" type="number" min="0" step="1" class="form-control"></td>
+      </tr>
+      <tr>
+        <td><input name="damage_description" type="text" class="form-control"></td>
+        <td><input name="damage_amount" type="number" min="0" step="1" class="form-control"></td>
+      </tr>
+      <tr>
+        <td><input name="damage_description" type="text" class="form-control"></td>
+        <td><input name="damage_amount" type="number" min="0" step="1" class="form-control"></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Step 3 — Optional transfer to another active tenancy</h2>
+  {% if other_active %}
+    <label>Transfer remaining advance to:</label>
+    <select name="transfer_tenancy_id" class="form-select select2">
+      <option value="">(no transfer)</option>
+      {% for oth in other_active %}
+        <option value="{{ oth.pk }}">{{ oth.house }}</option>
+      {% endfor %}
+    </select>
+    <p class="muted">Cross-ownership transfers (managed ↔ Meili-owned) are honoured with journal entries on both correct held-advance accounts.</p>
+  {% else %}
+    <p class="muted">Tenant has no other active tenancies.</p>
+  {% endif %}
+
+  <h2>Step 4 — Refund the remainder</h2>
+  <div class="form-grid">
+    <div class="mb-3">
+      <label>Refund method</label>
+      <select name="refund_method" class="form-select">
+        <option value="BANK">Bank transfer</option>
+        <option value="MOBILE_MONEY">Mobile money</option>
+        <option value="CASH">Cash</option>
+        <option value="CHEQUE">Cheque</option>
+      </select>
+    </div>
+    <div class="mb-3">
+      <label>Bank account (if non-cash)</label>
+      <select name="refund_bank_account" class="form-select">
+        <option value="">—</option>
+        {% for ba in bank_accounts %}
+          <option value="{{ ba.pk }}">{{ ba.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="mb-3">
+      <label>Destination details</label>
+      <input name="refund_destination" type="text" class="form-control">
+    </div>
+    <div class="mb-3">
+      <label>Reference number</label>
+      <input name="refund_reference" type="text" class="form-control">
+    </div>
+  </div>
+
+  {% if settlement and settlement.plan %}
+  <div class="card" style="padding:1rem;margin-top:1rem;background:#f4f6f8">
+    <h3>Computed plan</h3>
+    <pre style="font-family:monospace;white-space:pre-wrap">{{ settlement.plan }}</pre>
+    <p><strong>Final refund:</strong> {{ settlement.final_refund_amount }} UGX</p>
+    {% if settlement.landlord_shortfall %}
+    <p><strong>Landlord shortfall:</strong> {{ settlement.landlord_shortfall }} UGX</p>
+    {% endif %}
+    <p class="muted">Status: {{ settlement.get_status_display }} · Approval: {{ settlement.get_approval_status_display }}</p>
+  </div>
+  {% endif %}
+
+  <div class="form-actions" style="margin-top:1rem">
+    <button type="submit" name="action" value="compute" class="btn">Save draft plan</button>
+    <button type="submit" name="action" value="execute" class="btn btn-primary">Approve &amp; execute</button>
+  </div>
+  <p class="muted" style="margin-top:.5rem">
+    The refund row created at step 4 goes through its own maker-checker cycle. A checker DIFFERENT from the settlement maker must click "Approve &amp; execute" — self-approval is blocked.
+  </p>
+</form>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Collection Performance · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>Collection Performance</h1>
+    <p class="muted">Month-on-month AR billed vs AR collected (12 rolling months).</p>
+  </div>
+</section>
+
+<div class="card">
+  <table class="data">
+    <thead>
+      <tr>
+        <th>Period</th>
+        <th class="num">Billed (UGX)</th>
+        <th class="num">Collected (UGX)</th>
+        <th class="num">Collection Rate</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.period }}</td>
+        <td class="num">{{ r.billed }}</td>
+        <td class="num">{{ r.collected }}</td>
+        <td class="num">
+          {% if r.rate is not None %}{{ r.rate|floatformat:1 }}%{% else %}—{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="muted">No billing activity.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

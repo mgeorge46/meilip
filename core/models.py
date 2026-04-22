@@ -10,6 +10,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.urls import reverse
 from django.utils import timezone
 from simple_history.models import HistoricalRecords
 
@@ -86,6 +87,16 @@ class SoftDeleteModel(models.Model):
 class CoreBaseModel(TimeStampedModel, SoftDeleteModel):
     class Meta:
         abstract = True
+
+
+def compose_full_name(first_name, last_name, other_names=""):
+    """Compose a canonical full_name from parts. Order: first, other, last."""
+    parts = [
+        (first_name or "").strip(),
+        (other_names or "").strip(),
+        (last_name or "").strip(),
+    ]
+    return " ".join(p for p in parts if p)
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +186,37 @@ class ProRataMode(models.TextChoices):
     NEXT_CYCLE = "NEXT_CYCLE", "Next-Cycle Alignment"
 
 
+class UtilityKind(models.TextChoices):
+    """Utility line classification — drives income-account routing on
+    separately-billed utility invoice lines. Must stay in sync with the
+    `*_billed_separately` flags on SettingsMixin.
+    """
+    WATER = "WATER", "Water"
+    GARBAGE = "GARBAGE", "Garbage / Waste"
+    SECURITY = "SECURITY", "Security"
+    ELECTRICITY = "ELECTRICITY", "Electricity"
+    OTHER = "OTHER", "Other Utility"
+
+
+# Map each utility kind to the `*_billed_separately` boolean on SettingsMixin
+# and the accounting system-code for the matching income account.
+UTILITY_FLAG_BY_KIND = {
+    UtilityKind.WATER: "water_billed_separately",
+    UtilityKind.GARBAGE: "garbage_billed_separately",
+    UtilityKind.SECURITY: "security_billed_separately",
+    UtilityKind.ELECTRICITY: "electricity_billed_separately",
+    UtilityKind.OTHER: "other_bills_billed_separately",
+}
+
+UTILITY_INCOME_SYSCODE_BY_KIND = {
+    UtilityKind.WATER: "WATER_INCOME",
+    UtilityKind.GARBAGE: "GARBAGE_INCOME",
+    UtilityKind.SECURITY: "SECURITY_INCOME",
+    UtilityKind.ELECTRICITY: "ELECTRICITY_INCOME",
+    UtilityKind.OTHER: "OTHER_UTILITY_INCOME",
+}
+
+
 class Landlord(CoreBaseModel):
     class Status(models.TextChoices):
         ACTIVE = "ACTIVE", "Active"
@@ -193,7 +235,14 @@ class Landlord(CoreBaseModel):
         blank=True,
         related_name="landlord_profile",
     )
-    full_name = models.CharField(max_length=200)
+    first_name = models.CharField(max_length=80, blank=True)
+    last_name = models.CharField(max_length=80, blank=True)
+    other_names = models.CharField(max_length=120, blank=True)
+    full_name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Auto-composed from first/other/last on save. Do not edit directly.",
+    )
     phone = models.CharField(max_length=16)
     email = models.EmailField(blank=True)
     id_number = models.CharField(max_length=64, blank=True)
@@ -224,8 +273,17 @@ class Landlord(CoreBaseModel):
     class Meta:
         ordering = ["full_name"]
 
+    def save(self, *args, **kwargs):
+        composed = compose_full_name(self.first_name, self.last_name, self.other_names)
+        if composed:
+            self.full_name = composed
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.full_name
+
+    def get_absolute_url(self):
+        return reverse("core:landlord-detail", args=[self.pk])
 
 
 class SettingsMixin(models.Model):
@@ -278,6 +336,14 @@ class SettingsMixin(models.Model):
     )
     water_billed_separately = models.BooleanField(null=True, blank=True)
     garbage_billed_separately = models.BooleanField(null=True, blank=True)
+    security_billed_separately = models.BooleanField(null=True, blank=True)
+    electricity_billed_separately = models.BooleanField(null=True, blank=True)
+    other_bills_billed_separately = models.BooleanField(null=True, blank=True)
+    other_bills_description = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Free-text description of what 'other bills' covers at this level.",
+    )
 
     class Meta:
         abstract = True
@@ -303,6 +369,9 @@ class Estate(CoreBaseModel, SettingsMixin):
 
     def __str__(self):
         return self.name
+
+    def get_absolute_url(self):
+        return reverse("core:estate-detail", args=[self.pk])
 
 
 class House(CoreBaseModel, SettingsMixin):
@@ -338,6 +407,9 @@ class House(CoreBaseModel, SettingsMixin):
         label = self.name or self.house_number
         return f"{label} ({self.estate.name})"
 
+    def get_absolute_url(self):
+        return reverse("core:house-detail", args=[self.pk])
+
     @property
     def effective_landlord(self):
         return self.landlord or self.estate.landlord
@@ -356,7 +428,14 @@ class Employee(CoreBaseModel):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="employee_profile"
     )
-    full_name = models.CharField(max_length=200)
+    first_name = models.CharField(max_length=80, blank=True)
+    last_name = models.CharField(max_length=80, blank=True)
+    other_names = models.CharField(max_length=120, blank=True)
+    full_name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Auto-composed from first/other/last on save. Do not edit directly.",
+    )
     phone = models.CharField(max_length=16, blank=True)
     id_number = models.CharField(max_length=64, blank=True)
     manager = models.ForeignKey(
@@ -389,12 +468,6 @@ class Employee(CoreBaseModel):
         default=0,
         help_text="PAYE withheld monthly (URA). Computed and snapshotted by payroll run.",
     )
-    nssf_employee = UGXField(
-        default=0, help_text="NSSF employee contribution (5% of gross)."
-    )
-    nssf_employer = UGXField(
-        default=0, help_text="NSSF employer contribution (10% of gross)."
-    )
     other_deduction = UGXField(default=0, help_text="Other monthly deductions.")
     bank_name = models.CharField(max_length=120, blank=True)
     bank_account_name = models.CharField(max_length=120, blank=True)
@@ -403,15 +476,23 @@ class Employee(CoreBaseModel):
     tin = models.CharField(
         max_length=32, blank=True, help_text="URA Tax Identification Number."
     )
-    nssf_number = models.CharField(max_length=32, blank=True)
 
     history = HistoricalRecords()
 
     class Meta:
         ordering = ["full_name"]
 
+    def save(self, *args, **kwargs):
+        composed = compose_full_name(self.first_name, self.last_name, self.other_names)
+        if composed:
+            self.full_name = composed
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.full_name
+
+    def get_absolute_url(self):
+        return reverse("core:employee-detail", args=[self.pk])
 
     @property
     def gross_monthly(self):
@@ -428,13 +509,12 @@ class Employee(CoreBaseModel):
         return (
             self.gross_monthly
             - self.paye_monthly
-            - self.nssf_employee
             - self.other_deduction
         )
 
     @property
     def total_employer_cost(self):
-        return self.gross_monthly + self.nssf_employer
+        return self.gross_monthly
 
 
 # ---------------------------------------------------------------------------
@@ -458,7 +538,14 @@ class Tenant(CoreBaseModel):
         blank=True,
         related_name="tenant_profile",
     )
-    full_name = models.CharField(max_length=200)
+    first_name = models.CharField(max_length=80, blank=True)
+    last_name = models.CharField(max_length=80, blank=True)
+    other_names = models.CharField(max_length=120, blank=True)
+    full_name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Auto-composed from first/other/last on save. Do not edit directly.",
+    )
     phone = models.CharField(max_length=16)
     email = models.EmailField(blank=True)
     id_number = models.CharField(max_length=64, blank=True)
@@ -483,8 +570,17 @@ class Tenant(CoreBaseModel):
     class Meta:
         ordering = ["full_name"]
 
+    def save(self, *args, **kwargs):
+        composed = compose_full_name(self.first_name, self.last_name, self.other_names)
+        if composed:
+            self.full_name = composed
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.full_name
+
+    def get_absolute_url(self):
+        return reverse("core:tenant-detail", args=[self.pk])
 
     @property
     def derived_status(self):
@@ -577,3 +673,6 @@ class Supplier(CoreBaseModel):
 
     def __str__(self):
         return self.name
+
+    def get_absolute_url(self):
+        return reverse("core:supplier-detail", args=[self.pk])
