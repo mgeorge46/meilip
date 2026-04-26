@@ -1,26 +1,96 @@
 {% extends "base.html" %}
 {% block title %}Payments · Meili Property{% endblock %}
 {% block content %}
-<section class="page-header between">
-  <div><h1>Payments</h1></div>
-  <div><a class="btn primary" href="{% url 'billing:payment-create' %}">+ Record Payment</a></div>
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Payments</h1>
+    <p class="muted mb-0">Receipts of money in. One payment is allocated to one (or sequential) invoices via FIFO.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="{% url 'billing:payment-create' %}"><i class="bi bi-plus-lg me-1"></i>Record payment</a>
+  </div>
 </section>
-<div class="card">
-  <table class="data">
-    <thead><tr><th>Receipt #</th><th>Tenant</th><th class="num">Amount</th><th>Method</th><th>Status</th><th>Received</th></tr></thead>
+
+<div class="card filter-bar mb-3">
+  <form method="get" class="filter-grid">
+    <div style="grid-column: span 2;">
+      <label>Search</label>
+      <input type="search" name="q" value="{{ request.GET.q|default:'' }}" class="form-control"
+             placeholder="Receipt #, tenant, reference, or amount">
+    </div>
+    <div>
+      <label>Status</label>
+      <select name="status" class="form-select">
+        <option value="">Any</option>
+        <option value="PENDING"        {% if request.GET.status == 'PENDING' %}selected{% endif %}>Pending</option>
+        <option value="APPROVED"       {% if request.GET.status == 'APPROVED' %}selected{% endif %}>Approved</option>
+        <option value="AUTO_APPROVED"  {% if request.GET.status == 'AUTO_APPROVED' %}selected{% endif %}>Auto-approved</option>
+        <option value="REJECTED"       {% if request.GET.status == 'REJECTED' %}selected{% endif %}>Rejected</option>
+        <option value="SENT_BACK"      {% if request.GET.status == 'SENT_BACK' %}selected{% endif %}>Sent back</option>
+      </select>
+    </div>
+    <div>
+      <label>Method</label>
+      <select name="method" class="form-select">
+        <option value="">Any</option>
+        <option value="CASH"          {% if request.GET.method == 'CASH' %}selected{% endif %}>Cash</option>
+        <option value="BANK"          {% if request.GET.method == 'BANK' %}selected{% endif %}>Bank</option>
+        <option value="MOBILE_MONEY"  {% if request.GET.method == 'MOBILE_MONEY' %}selected{% endif %}>Mobile Money</option>
+        <option value="OTHER"         {% if request.GET.method == 'OTHER' %}selected{% endif %}>Other</option>
+      </select>
+    </div>
+    <div>
+      <label>Received from</label>
+      <input type="date" name="from" class="form-control" value="{{ request.GET.from|default:'' }}">
+    </div>
+    <div>
+      <label>Received to</label>
+      <input type="date" name="to" class="form-control" value="{{ request.GET.to|default:'' }}">
+    </div>
+    <div>
+      <label>Page size</label>
+      <select name="page_size" class="form-select" onchange="this.form.submit()">
+        {% for s in page_size_options %}
+          <option value="{{ s }}" {% if s == current_page_size %}selected{% endif %}>{{ s }}/page</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-outline-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
+      <a href="{% url 'billing:payment-list' %}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </form>
+</div>
+
+{% include "core/_data_toolbar.html" with total_count=paginator.count %}
+
+<div class="data-table-wrap">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Receipt #</th><th>Tenant</th>
+        <th class="text-end">Amount (UGX)</th>
+        <th>Method</th><th>Reference</th>
+        <th>Status</th><th>Received</th>
+      </tr>
+    </thead>
     <tbody>
       {% for p in payments %}
       <tr>
-        <td><a href="{% url 'billing:payment-detail' p.pk %}">{{ p.number|default:"(pending)" }}</a></td>
+        <td><a href="{% url 'billing:payment-detail' p.pk %}" class="fw-semibold"><code>{{ p.number|default:"(pending)" }}</code></a></td>
         <td>{{ p.tenant.full_name }}</td>
-        <td class="num">{{ p.amount }}</td>
-        <td>{{ p.get_method_display }}</td>
-        <td><span class="badge approval-{{ p.approval_status|lower }}">{{ p.get_approval_status_display }}</span></td>
-        <td>{{ p.received_at }}</td>
+        <td class="text-end num fw-semibold">{{ p.amount }}</td>
+        <td><span class="badge text-bg-light">{{ p.get_method_display }}</span></td>
+        <td>{{ p.reference_number|default:"—" }}</td>
+        <td><span class="badge status-{{ p.approval_status|lower }}">{{ p.get_approval_status_display }}</span></td>
+        <td class="small text-muted">{{ p.received_at|date:"Y-m-d H:i" }}</td>
       </tr>
-      {% empty %}<tr><td colspan="6" class="muted">No payments yet.</td></tr>{% endfor %}
+      {% empty %}
+      <tr class="empty-row"><td colspan="7">No payments match your filters.</td></tr>
+      {% endfor %}
     </tbody>
   </table>
 </div>
+
 {% include "core/pagination.html" %}
 {% endblock %}

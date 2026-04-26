@@ -34,6 +34,7 @@ class ApprovalStatus(models.TextChoices):
     APPROVED = "APPROVED", "Approved"
     REJECTED = "REJECTED", "Rejected"
     AUTO_APPROVED = "AUTO_APPROVED", "Auto-approved (trusted)"
+    SENT_BACK = "SENT_BACK", "Sent back for revision"
 
 
 class MakerCheckerMixin(models.Model):
@@ -93,6 +94,39 @@ class MakerCheckerMixin(models.Model):
         self.approved_at = timezone.now()
         self.save(update_fields=[
             "checker", "approval_status", "rejection_reason", "approved_at"
+        ])
+
+    def send_back(self, user, reason):
+        """Soft-reject: returns the record to the maker for editing/resubmit.
+        Unlike reject(), it doesn't close the record — maker can edit and
+        re-submit via the normal edit flow."""
+        if self.approval_status != ApprovalStatus.PENDING:
+            raise ValidationError("Only pending records can be sent back.")
+        if self.maker_id and self.maker_id == user.id:
+            raise SelfApprovalBlocked("A maker cannot send back their own submission.")
+        self.checker = user
+        self.approval_status = ApprovalStatus.SENT_BACK
+        self.rejection_reason = reason or ""
+        self.approved_at = timezone.now()
+        self.save(update_fields=[
+            "checker", "approval_status", "rejection_reason", "approved_at"
+        ])
+
+    def resubmit(self, user):
+        """Move a SENT_BACK record back to PENDING after the maker has edited
+        it. Only the original maker can resubmit."""
+        if self.approval_status != ApprovalStatus.SENT_BACK:
+            raise ValidationError("Only sent-back records can be resubmitted.")
+        if self.maker_id and self.maker_id != user.id:
+            raise ValidationError("Only the original maker can resubmit.")
+        self.approval_status = ApprovalStatus.PENDING
+        self.submitted_at = timezone.now()
+        self.rejection_reason = ""
+        self.checker = None
+        self.approved_at = None
+        self.save(update_fields=[
+            "approval_status", "submitted_at", "rejection_reason",
+            "checker", "approved_at",
         ])
 
     def try_trusted_autoapprove(self):
@@ -361,6 +395,16 @@ class Payment(MakerCheckerMixin, CoreBaseModel):
 
     def __str__(self):
         return self.number or f"PMT(pending#{self.pk})"
+
+    def save(self, *args, **kwargs):
+        # Auto-allocate the receipt number on first save. RCP numbers are
+        # sequential and never reused per SPEC; allocating at create time
+        # (rather than on approval) keeps the UI showing a real number from
+        # the moment the payment is recorded.
+        if not self.number:
+            from .sequences import allocate_number
+            self.number = allocate_number("RCP")
+        super().save(*args, **kwargs)
 
 
 class PaymentAllocation(models.Model):
@@ -727,3 +771,235 @@ class CommissionPosting(models.Model):
 
     class Meta:
         ordering = ["posted_at", "id"]
+
+
+# ---------------------------------------------------------------------------
+# LandlordPayout  (Phase E)
+# ---------------------------------------------------------------------------
+# Records disbursements from Meili to a landlord — typically following a
+# monthly statement. Maker-checker required. GL posting is deferred to a
+# future phase; for now these are records of intent/actual transfers
+# captured manually by finance.
+# ---------------------------------------------------------------------------
+class LandlordPayout(MakerCheckerMixin, CoreBaseModel):
+    allow_trusted_bypass = True
+
+    class Method(models.TextChoices):
+        BANK = "BANK", "Bank transfer"
+        MOBILE_MONEY = "MOBILE_MONEY", "Mobile Money"
+        CHEQUE = "CHEQUE", "Cheque"
+        CASH = "CASH", "Cash"
+        OTHER = "OTHER", "Other"
+
+    number = models.CharField(max_length=32, unique=True, null=True, blank=True)
+    landlord = models.ForeignKey(
+        "core.Landlord", on_delete=models.PROTECT, related_name="payouts"
+    )
+    amount = UGXField()
+    method = models.CharField(max_length=16, choices=Method.choices, default=Method.BANK)
+    bank_account = models.ForeignKey(
+        "accounting.BankAccount", on_delete=models.PROTECT, related_name="landlord_payouts",
+        help_text="Meili-side bank account the funds were sent from.",
+    )
+    period_from = models.DateField(
+        null=True, blank=True,
+        help_text="Statement period start (optional).",
+    )
+    period_to = models.DateField(
+        null=True, blank=True,
+        help_text="Statement period end (optional).",
+    )
+    reference_number = models.CharField(
+        max_length=64, blank=True,
+        help_text="External reference (bank ref, MoMo txn id, cheque no.).",
+    )
+    paid_at = models.DateTimeField(default=timezone.now)
+    notes = models.TextField(blank=True)
+
+    source_journal = models.ForeignKey(
+        "accounting.JournalEntry", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="source_landlord_payouts",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["-paid_at", "-id"]
+        indexes = [
+            models.Index(fields=["landlord", "paid_at"]),
+            models.Index(fields=["approval_status", "paid_at"]),
+        ]
+
+    def __str__(self):
+        return self.number or f"LPO(pending#{self.pk})"
+
+    def save(self, *args, **kwargs):
+        if not self.number:
+            from .sequences import allocate_number
+            self.number = allocate_number("LPO")
+        super().save(*args, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# SupplierPayment  (Phase E)
+# ---------------------------------------------------------------------------
+# Records payments from Meili to a supplier for goods or services received.
+# Maker-checker required. GL posting deferred.
+# ---------------------------------------------------------------------------
+class SupplierPayment(MakerCheckerMixin, CoreBaseModel):
+    allow_trusted_bypass = True
+
+    class Method(models.TextChoices):
+        BANK = "BANK", "Bank transfer"
+        MOBILE_MONEY = "MOBILE_MONEY", "Mobile Money"
+        CHEQUE = "CHEQUE", "Cheque"
+        CASH = "CASH", "Cash"
+        OTHER = "OTHER", "Other"
+
+    number = models.CharField(max_length=32, unique=True, null=True, blank=True)
+    supplier = models.ForeignKey(
+        "core.Supplier", on_delete=models.PROTECT, related_name="payments"
+    )
+    amount = UGXField()
+    method = models.CharField(max_length=16, choices=Method.choices, default=Method.BANK)
+    bank_account = models.ForeignKey(
+        "accounting.BankAccount", on_delete=models.PROTECT, related_name="supplier_payments",
+    )
+    service_description = models.CharField(
+        max_length=255,
+        help_text="What was this payment for? (e.g. 'April plumbing — Buziga A2')",
+    )
+    invoice_reference = models.CharField(
+        max_length=64, blank=True,
+        help_text="Supplier's invoice number (if any).",
+    )
+    reference_number = models.CharField(
+        max_length=64, blank=True,
+        help_text="External reference (bank ref, MoMo txn id, cheque no.).",
+    )
+    related_house = models.ForeignKey(
+        "core.House", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="supplier_payments",
+        help_text="Optional — house the service related to, for cost allocation.",
+    )
+    paid_at = models.DateTimeField(default=timezone.now)
+    notes = models.TextField(blank=True)
+
+    source_journal = models.ForeignKey(
+        "accounting.JournalEntry", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="source_supplier_payments",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["-paid_at", "-id"]
+        indexes = [
+            models.Index(fields=["supplier", "paid_at"]),
+            models.Index(fields=["approval_status", "paid_at"]),
+        ]
+
+    def __str__(self):
+        return self.number or f"SPY(pending#{self.pk})"
+
+    def save(self, *args, **kwargs):
+        if not self.number:
+            from .sequences import allocate_number
+            self.number = allocate_number("SPY")
+        super().save(*args, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# ExpenseClaim  (Phase E.3)
+# ---------------------------------------------------------------------------
+# Employees submit expense claims with an attached receipt photo. Maker-checker
+# required; Trusted bypass available. On approval a signal posts:
+#   Dr  <chosen expense account>
+#   Cr  <reimbursement bank account>     (when reimbursed)
+# ---------------------------------------------------------------------------
+def _expense_receipt_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f"expense_receipts/{instance.claimant_id or 'x'}/{instance.number or 'pending'}{ext}"
+
+
+class ExpenseClaim(MakerCheckerMixin, CoreBaseModel):
+    allow_trusted_bypass = False  # expenses always require a second set of eyes
+
+    class Category(models.TextChoices):
+        MAINTENANCE_REPAIRS = "MAINTENANCE_REPAIRS", "Maintenance & Repairs"
+        UTILITIES = "UTILITIES", "Utilities"
+        TRANSPORT = "TRANSPORT", "Transport"
+        OFFICE_SUPPLIES = "OFFICE_SUPPLIES", "Office supplies"
+        COMMS = "COMMS", "Communications / Airtime"
+        LEGAL_PROFESSIONAL = "LEGAL_PROFESSIONAL", "Legal & professional"
+        OTHER = "OTHER", "Other operating"
+
+    # Map each category to a Chart-of-Accounts system_code; the signal uses
+    # this to look up the expense account. Fallback is MAINTENANCE_REPAIRS.
+    CATEGORY_TO_SYSTEM_CODE = {
+        "MAINTENANCE_REPAIRS": "MAINTENANCE_REPAIRS",
+        "UTILITIES": "UTILITIES_EXPENSE",
+        "TRANSPORT": "TRANSPORT_EXPENSE",
+        "OFFICE_SUPPLIES": "OFFICE_SUPPLIES_EXPENSE",
+        "COMMS": "COMMS_EXPENSE",
+        "LEGAL_PROFESSIONAL": "LEGAL_EXPENSE",
+        "OTHER": "OTHER_OPERATING_EXPENSE",
+    }
+
+    number = models.CharField(max_length=32, unique=True, null=True, blank=True)
+    claimant = models.ForeignKey(
+        "core.Employee", on_delete=models.PROTECT, related_name="expense_claims",
+        help_text="Employee submitting the claim.",
+    )
+    category = models.CharField(max_length=32, choices=Category.choices)
+    description = models.CharField(
+        max_length=255,
+        help_text="What was this expense for? (e.g. 'Taxi to Buziga site — plumbing emergency')",
+    )
+    related_house = models.ForeignKey(
+        "core.House", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="expense_claims",
+        help_text="Optional — house this expense relates to (for cost allocation).",
+    )
+    amount = UGXField()
+    incurred_at = models.DateField(
+        default=timezone.localdate,
+        help_text="Date the expense was actually incurred.",
+    )
+    receipt_photo = models.ImageField(
+        upload_to=_expense_receipt_path, null=True, blank=True,
+        help_text="Upload a photo of the receipt (optional but strongly recommended).",
+    )
+    # Reimbursement: where the money comes FROM on approval. Selected by
+    # Finance at approval time — employees do NOT pick the account.
+    reimbursement_bank = models.ForeignKey(
+        "accounting.BankAccount", on_delete=models.PROTECT,
+        related_name="expense_claims", null=True, blank=True,
+        help_text="Set by Finance when approving. Chooses the GL bank/cash account.",
+    )
+    notes = models.TextField(blank=True)
+
+    source_journal = models.ForeignKey(
+        "accounting.JournalEntry", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="source_expense_claims",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["-incurred_at", "-id"]
+        indexes = [
+            models.Index(fields=["claimant", "incurred_at"]),
+            models.Index(fields=["approval_status", "incurred_at"]),
+            models.Index(fields=["category"]),
+        ]
+
+    def __str__(self):
+        return self.number or f"EXP(pending#{self.pk})"
+
+    def save(self, *args, **kwargs):
+        if not self.number:
+            from .sequences import allocate_number
+            self.number = allocate_number("EXP")
+        super().save(*args, **kwargs)

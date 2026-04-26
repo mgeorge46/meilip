@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Collections targets · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Collections Targets</h1>
+    <p class="muted mb-0">Monthly UGX target per collections employee. Targets feed the performance report and the bonus calculation.</p>
+  </div>
+  <div class="actions d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'core:collections-bracket-list' %}"><i class="bi bi-sliders me-1"></i>Bonus brackets</a>
+    <a class="btn btn-outline-primary" href="{% url 'core:report-collections-performance' %}"><i class="bi bi-graph-up me-1"></i>Performance report</a>
+    <a class="btn btn-primary" href="{% url 'core:collections-target-create' %}"><i class="bi bi-plus-lg me-1"></i>New target</a>
+  </div>
+</section>
+
+<div class="card filter-bar mb-3">
+  <form method="get" class="filter-grid">
+    <div>
+      <label>Employee</label>
+      <select name="employee" class="form-select" onchange="this.form.submit()">
+        <option value="">All employees</option>
+        {% for e in employees %}
+          <option value="{{ e.pk }}" {% if request.GET.employee == e.pk|stringformat:'s' %}selected{% endif %}>{{ e.full_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-actions">
+      <a href="{% url 'core:collections-target-list' %}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </form>
+</div>
+
+<div class="data-table-wrap">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr><th>Employee</th><th>Month</th><th class="text-end">Target (UGX)</th><th>Notes</th><th class="text-end">Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for t in targets %}
+      <tr>
+        <td><a href="{% url 'core:employee-detail' t.employee.pk %}" class="fw-semibold">{{ t.employee.full_name }}</a></td>
+        <td>{{ t.month|date:"M Y" }}</td>
+        <td class="text-end num">{{ t.target_amount }}</td>
+        <td class="text-muted small">{{ t.notes|truncatechars:80 }}</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'core:collections-target-update' t.pk %}"><i class="bi bi-pencil"></i></a>
+          <form method="post" action="{% url 'core:collections-target-delete' t.pk %}" class="d-inline" onsubmit="return confirm('Remove this target?');">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="empty-row"><td colspan="5">No targets set yet. <a href="{% url 'core:collections-target-create' %}">Create one</a>.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include "core/pagination.html" %}
+{% endblock %}

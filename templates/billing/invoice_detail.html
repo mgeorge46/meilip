@@ -9,24 +9,84 @@
   <div>
     <span class="badge status-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
     {% if invoice.status == 'DRAFT' %}
-      <form method="post" action="{% url 'billing:invoice-delete' invoice.pk %}" style="display:inline" onsubmit="return confirm('Delete this draft?')">
+      <form method="post" action="{% url 'billing:invoice-issue' invoice.pk %}" class="d-inline" onsubmit="return confirm('Issue this invoice? A GL journal entry will be posted.');">
         {% csrf_token %}
-        <button class="btn danger">Delete (Super Admin)</button>
+        <button class="btn btn-sm btn-primary"><i class="bi bi-send-check me-1"></i>Issue invoice</button>
       </form>
+      <form method="post" action="{% url 'billing:invoice-delete' invoice.pk %}" class="d-inline" onsubmit="return confirm('Delete this draft?')">
+        {% csrf_token %}
+        <button class="btn btn-sm btn-outline-danger">Delete (Super Admin)</button>
+      </form>
+    {% endif %}
+    {% if invoice.status == 'ISSUED' or invoice.status == 'PARTIALLY_PAID' or invoice.status == 'OVERDUE' %}
+      <button type="button" class="btn btn-sm btn-outline-primary ms-1" data-bs-toggle="collapse" data-bs-target="#manual-paid-form">
+        <i class="bi bi-check2-circle me-1"></i>Mark paid (admin override)
+      </button>
     {% endif %}
   </div>
 </section>
 
-<div class="card">
-  <dl class="kv">
+{% if invoice.status == 'ISSUED' or invoice.status == 'PARTIALLY_PAID' or invoice.status == 'OVERDUE' %}
+<div class="collapse mb-3" id="manual-paid-form">
+  <div class="card p-3 border-warning">
+    <form method="post" action="{% url 'billing:invoice-mark-paid' invoice.pk %}" onsubmit="return confirm('Force this invoice to PAID without a Payment record? This bypasses GL posting — you must reconcile the ledger separately.');">
+      {% csrf_token %}
+      <div class="alert alert-warning small mb-2">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        <strong>Admin override.</strong> Use only when a payment was received outside the system and no <code>Payment</code> record will be created (e.g. cash reconciled offline, historical data, bank credit already booked via a manual journal). A timestamped note with your email will be appended to the invoice.
+      </div>
+      <div class="row g-2 align-items-end">
+        <div class="col-md-9">
+          <label class="form-label small">Reason (required)</label>
+          <input type="text" name="reason" class="form-control" placeholder="e.g. Cash received 2026-04-12, reconciled via JE-202604-000023" required>
+        </div>
+        <div class="col-md-3 d-grid">
+          <button type="submit" class="btn btn-warning"><i class="bi bi-check2-circle me-1"></i>Confirm mark paid</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{# ---- summary stats ---- #}
+<div class="row g-3 mb-3">
+  <div class="col-md-3 col-6">
+    <div class="card p-3">
+      <div class="text-uppercase text-muted small" style="letter-spacing:.05em;">Status</div>
+      <div class="h4 mb-0"><span class="badge status-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span></div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="card p-3">
+      <div class="text-uppercase text-muted small" style="letter-spacing:.05em;">Total</div>
+      <div class="h4 num mb-0">UGX {{ invoice.total }}</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="card p-3">
+      <div class="text-uppercase text-muted small" style="letter-spacing:.05em;">Paid</div>
+      <div class="h4 num mb-0 text-success">UGX {{ invoice.amount_paid }}</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="card p-3">
+      <div class="text-uppercase text-muted small" style="letter-spacing:.05em;">Outstanding</div>
+      <div class="h4 num mb-0 {% if invoice.outstanding > 0 %}text-danger{% else %}text-success{% endif %}">UGX {{ invoice.outstanding }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="card p-3 mb-3">
+  <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Invoice details</h2>
+  <dl class="kv mb-0">
     <dt>Period</dt><dd>{{ invoice.period_from }} → {{ invoice.period_to }}</dd>
     <dt>Issue date</dt><dd>{{ invoice.issue_date }}</dd>
     <dt>Due date</dt><dd>{{ invoice.due_date }}</dd>
-    <dt>Subtotal</dt><dd>{{ invoice.subtotal }}</dd>
-    <dt>Tax</dt><dd>{{ invoice.tax_total }}</dd>
-    <dt>Total</dt><dd><strong>{{ invoice.total }}</strong></dd>
-    <dt>Outstanding</dt><dd><strong>{{ invoice.outstanding }}</strong></dd>
+    <dt>Subtotal</dt><dd class="num">{{ invoice.subtotal }}</dd>
+    <dt>Tax</dt><dd class="num">{{ invoice.tax_total }}</dd>
     {% if invoice.is_backdated %}<dt>Backdate reason</dt><dd>{{ invoice.backdate_reason }}</dd>{% endif %}
+    {% if invoice.notes %}<dt>Notes</dt><dd>{{ invoice.notes|linebreaksbr }}</dd>{% endif %}
   </dl>
 </div>
 
@@ -62,16 +122,29 @@
 {% endif %}
 
 {% if invoice.allocations.all %}
-<div class="card">
-  <h2>Payment allocations</h2>
-  <table class="data">
-    <thead><tr><th>Payment</th><th>When</th><th class="num">Amount</th></tr></thead>
-    <tbody>
-      {% for a in invoice.allocations.all %}
-        <tr><td>{{ a.payment.number|default:a.payment.pk }}</td><td>{{ a.allocated_at }}</td><td class="num">{{ a.amount }}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="card p-0 mb-3">
+  <div class="p-3 d-flex justify-content-between align-items-center">
+    <h2 class="h6 mb-0 text-uppercase" style="letter-spacing:.05em;">Payment allocations</h2>
+    <span class="small text-muted">Each row is one payment applied to this invoice (FIFO).</span>
+  </div>
+  <div class="data-table-wrap" style="border:none;border-top:1px solid var(--border);">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr><th>Payment</th><th>Method</th><th>When</th><th>Status</th><th class="text-end">Amount (UGX)</th></tr>
+      </thead>
+      <tbody>
+        {% for a in invoice.allocations.all %}
+          <tr>
+            <td><a href="{% url 'billing:payment-detail' a.payment.pk %}" class="fw-semibold"><code>{{ a.payment.number|default:a.payment.pk }}</code></a></td>
+            <td><span class="badge text-bg-light">{{ a.payment.get_method_display }}</span></td>
+            <td class="small">{{ a.allocated_at|date:"Y-m-d H:i" }}</td>
+            <td><span class="badge status-{{ a.payment.approval_status|lower }}">{{ a.payment.get_approval_status_display }}</span></td>
+            <td class="text-end num fw-semibold">{{ a.amount }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endif %}
 

@@ -14,6 +14,7 @@ urlpatterns = [
     path("journals/<int:pk>/", views.journal_entry_detail, name="journal-detail"),
     path("journals/<int:pk>/post/", views.journal_entry_post, name="journal-post"),
     path("reports/commission/", views.commission_income_report, name="commission-report"),
+    path("reports/trial-balance/", views.trial_balance, name="trial-balance"),
 
     # Bank accounts
     path("bank-accounts/", views.BankAccountListView.as_view(), name="bankaccount-list"),

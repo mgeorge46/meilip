@@ -30,13 +30,30 @@ class BankAccountForm(forms.ModelForm):
             "mobile_provider", "mobile_number", "currency", "ledger_account", "is_active",
         ]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only POSTABLE leaf accounts can be tied to a BankAccount — picking
+        # a rollup like "1200 Bank Accounts" causes JE posting to fail with
+        # "Cannot post to non-postable account 1200".
+        self.fields["ledger_account"].queryset = (
+            Account.objects
+            .filter(is_postable=True, is_active=True, account_type__category="ASSET")
+            .order_by("code")
+        )
+        self.fields["ledger_account"].help_text = (
+            "Leaf asset account this bank/cash channel posts to. "
+            "Rollup parents are filtered out automatically."
+        )
+
 
 class JournalEntryForm(forms.ModelForm):
     class Meta:
         model = JournalEntry
         fields = ["entry_date", "memo", "source"]
         widgets = {
-            "entry_date": forms.DateInput(attrs={"type": "date"}),
+            "entry_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "memo": forms.TextInput(attrs={"class": "form-control", "placeholder": "Short description of this entry"}),
+            "source": forms.Select(attrs={"class": "form-select"}),
         }
 
 
@@ -44,6 +61,13 @@ class JournalEntryLineForm(forms.ModelForm):
     class Meta:
         model = JournalEntryLine
         fields = ["account", "debit", "credit", "description"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["account"].widget.attrs.update({"class": "form-select"})
+        self.fields["debit"].widget.attrs.update({"class": "form-control text-end num", "placeholder": "0", "inputmode": "numeric"})
+        self.fields["credit"].widget.attrs.update({"class": "form-control text-end num", "placeholder": "0", "inputmode": "numeric"})
+        self.fields["description"].widget.attrs.update({"class": "form-control", "placeholder": "Optional line note"})
 
 
 JournalEntryLineFormSet = inlineformset_factory(

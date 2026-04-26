@@ -1,27 +1,76 @@
-{% extends "base.html" %}
-{% block title %}Bank accounts · Meili Property{% endblock %}
-{% block content %}
-<section class="page-header between">
-  <div><h1>Bank accounts</h1></div>
-  <div><a class="btn primary" href="{% url 'accounting:bankaccount-create' %}">+ New Bank Account</a></div>
+{% extends "accounting/_base.html" %}
+{% block accounting_title %}Bank Accounts{% endblock %}
+{% block accounting_content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Bank Accounts</h1>
+    <p class="muted mb-0">Bank, mobile-money, and cash accounts linked to GL accounts.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="{% url 'accounting:bankaccount-create' %}"><i class="bi bi-plus-lg me-1"></i>New bank account</a>
+  </div>
 </section>
 
-<div class="card">
-  <table class="data">
-    <thead><tr><th>Name</th><th>Kind</th><th>Bank / Provider</th><th>Number</th><th>Currency</th><th>Ledger</th><th>Active</th><th></th></tr></thead>
+<div class="card filter-bar mb-3">
+  <form method="get" class="filter-grid">
+    <div>
+      <label>Search</label>
+      <input type="search" class="form-control" name="q" value="{{ request.GET.q|default:'' }}" placeholder="Name, bank, provider, number">
+    </div>
+    <div>
+      <label>Kind</label>
+      <select name="kind" class="form-select">
+        <option value="">All</option>
+        <option value="BANK"         {% if request.GET.kind == 'BANK' %}selected{% endif %}>Bank</option>
+        <option value="MOBILE_MONEY" {% if request.GET.kind == 'MOBILE_MONEY' %}selected{% endif %}>Mobile Money</option>
+        <option value="CASH"         {% if request.GET.kind == 'CASH' %}selected{% endif %}>Cash</option>
+      </select>
+    </div>
+    <div>
+      <label>Active</label>
+      <select name="active" class="form-select">
+        <option value="">Any</option>
+        <option value="1" {% if request.GET.active == '1' %}selected{% endif %}>Active only</option>
+        <option value="0" {% if request.GET.active == '0' %}selected{% endif %}>Inactive only</option>
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-outline-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
+      <a href="{% url 'accounting:bankaccount-list' %}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </form>
+</div>
+
+{% include "core/_data_toolbar.html" with total_count=paginator.count %}
+
+<div class="data-table-wrap">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Name</th><th>Kind</th><th>Bank / Provider</th><th>Number</th>
+        <th>Currency</th><th>Ledger</th><th class="text-center">Active</th><th class="text-end">Actions</th>
+      </tr>
+    </thead>
     <tbody>
       {% for b in bankaccounts %}
       <tr>
-        <td><a href="{% url 'accounting:bankaccount-detail' b.pk %}">{{ b.name }}</a></td>
-        <td>{{ b.get_kind_display }}</td>
+        <td><a href="{% url 'accounting:bankaccount-detail' b.pk %}" class="fw-semibold">{{ b.name }}</a></td>
+        <td><span class="badge text-bg-light">{{ b.get_kind_display }}</span></td>
         <td>{{ b.bank_name|default:b.mobile_provider|default:"—" }}</td>
-        <td>{{ b.account_number|default:b.mobile_number|default:"—" }}</td>
+        <td><code>{{ b.account_number|default:b.mobile_number|default:"—" }}</code></td>
         <td>{{ b.currency.code }}</td>
-        <td>{{ b.ledger_account.code }} — {{ b.ledger_account.name }}</td>
-        <td>{% if b.is_active %}<span class="badge active">Yes</span>{% else %}<span class="badge exited">No</span>{% endif %}</td>
-        <td class="actions"><a href="{% url 'accounting:bankaccount-update' b.pk %}">Edit</a></td>
+        <td><code>{{ b.ledger_account.code }}</code> {{ b.ledger_account.name }}</td>
+        <td class="text-center">
+          {% if b.is_active %}<span class="badge text-bg-success">Yes</span>
+          {% else %}<span class="badge text-bg-secondary">No</span>{% endif %}
+        </td>
+        <td class="text-end">
+          <a href="{% url 'accounting:bankaccount-update' b.pk %}" class="btn btn-sm btn-outline-secondary" aria-label="Edit"><i class="bi bi-pencil"></i></a>
+        </td>
       </tr>
-      {% empty %}<tr><td colspan="8" class="muted">No bank accounts yet.</td></tr>{% endfor %}
+      {% empty %}
+      <tr class="empty-row"><td colspan="8">No bank accounts match your filters.</td></tr>
+      {% endfor %}
     </tbody>
   </table>
 </div>

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Supplier payment {{ payment.number }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Supplier Payment <code>{{ payment.number }}</code></h1>
+    <p class="muted mb-0">
+      To <a href="{% url 'core:supplier-detail' payment.supplier_id %}">{{ payment.supplier.name }}</a>
+      ·
+      {% if payment.approval_status == 'APPROVED' or payment.approval_status == 'AUTO_APPROVED' %}
+        <span class="badge text-bg-success">{{ payment.get_approval_status_display }}</span>
+      {% elif payment.approval_status == 'PENDING' %}
+        <span class="badge text-bg-warning">Pending approval</span>
+      {% elif payment.approval_status == 'REJECTED' %}
+        <span class="badge text-bg-danger">Rejected</span>
+      {% endif %}
+    </p>
+  </div>
+  <div class="actions d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'billing:supplier-payment-list' %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    {% if payment.approval_status == 'PENDING' %}
+      <a class="btn btn-primary" href="{% url 'billing:approvals' %}"><i class="bi bi-check2-circle me-1"></i>Approvals queue</a>
+    {% endif %}
+  </div>
+</section>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card p-3">
+      <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Payment details</h2>
+      <dl class="kv mb-0">
+        <dt>Amount</dt><dd class="num fw-semibold">UGX {{ payment.amount }}</dd>
+        <dt>Service</dt><dd>{{ payment.service_description }}</dd>
+        <dt>Related house</dt><dd>{% if payment.related_house %}<a href="{% url 'core:house-detail' payment.related_house_id %}">{{ payment.related_house }}</a>{% else %}—{% endif %}</dd>
+        <dt>Method</dt><dd>{{ payment.get_method_display }}</dd>
+        <dt>From bank</dt><dd>{{ payment.bank_account.name }} <span class="text-muted">({{ payment.bank_account.account_number|default:"—" }})</span></dd>
+        <dt>Supplier invoice #</dt><dd>{{ payment.invoice_reference|default:"—" }}</dd>
+        <dt>External reference</dt><dd>{{ payment.reference_number|default:"—" }}</dd>
+        <dt>Paid at</dt><dd>{{ payment.paid_at|date:"Y-m-d H:i" }}</dd>
+        {% if payment.notes %}<dt>Notes</dt><dd>{{ payment.notes|linebreaksbr }}</dd>{% endif %}
+      </dl>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card p-3">
+      <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Approval trail</h2>
+      <dl class="kv mb-0">
+        <dt>Maker</dt>
+        <dd>{% if payment.maker %}{{ payment.maker.get_full_name|default:payment.maker.email }}{% else %}—{% endif %}</dd>
+        <dt>Submitted</dt><dd>{{ payment.submitted_at|date:"Y-m-d H:i"|default:"—" }}</dd>
+        <dt>Checker</dt>
+        <dd>{% if payment.checker %}{{ payment.checker.get_full_name|default:payment.checker.email }}{% else %}—{% endif %}</dd>
+        <dt>Decided</dt><dd>{{ payment.approved_at|date:"Y-m-d H:i"|default:"—" }}</dd>
+        {% if payment.rejection_reason %}<dt>Rejected</dt><dd class="text-danger">{{ payment.rejection_reason }}</dd>{% endif %}
+      </dl>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -33,10 +33,15 @@
     <li data-section="billing">
       <button class="menu-toggle" data-label="Billing"><span class="menu-icon">$</span><span class="menu-label">Billing</span><span class="menu-chevron">›</span></button>
       <ul class="submenu">
-        <li><a href="{% url 'dashboard:coming-soon' 'invoices' %}">Invoices</a></li>
-        <li><a href="{% url 'dashboard:coming-soon' 'payments' %}">Payments</a></li>
-        <li><a href="{% url 'dashboard:coming-soon' 'receipts' %}">Receipts</a></li>
-        <li><a href="{% url 'dashboard:coming-soon' 'invoice-schedules' %}">Invoice Schedules</a></li>
+        <li><a href="{% url 'billing:invoice-list' %}">Invoices</a></li>
+        <li><a href="{% url 'billing:payment-list' %}">Payments</a></li>
+        <li><a href="{% url 'billing:receipt-list' %}">Receipts</a></li>
+        <li><a href="{% url 'billing:invoice-schedule-list' %}">Invoice Schedules</a></li>
+        <li><a href="{% url 'billing:approvals' %}">Approvals Queue</a></li>
+        <li><a href="{% url 'billing:adhoc-list' %}">Ad-hoc Charges</a></li>
+        <li><a href="{% url 'billing:landlord-payout-list' %}">Landlord Payouts</a></li>
+        <li><a href="{% url 'billing:supplier-payment-list' %}">Supplier Payments</a></li>
+        <li><a href="{% url 'billing:expense-claim-list' %}">Expense Claims</a></li>
       </ul>
     </li>
 
@@ -47,7 +52,7 @@
         <li><a href="{% url 'accounting:account-list' %}">Chart of Accounts</a></li>
         <li><a href="{% url 'accounting:journal-create' %}">New Journal Entry</a></li>
         <li><a href="{% url 'accounting:general-ledger' %}">General Ledger</a></li>
-        <li><a href="{% url 'dashboard:coming-soon' 'trial-balance' %}">Trial Balance</a></li>
+        <li><a href="{% url 'accounting:trial-balance' %}">Trial Balance</a></li>
         <li><a href="{% url 'accounting:bankaccount-list' %}">Bank Accounts</a></li>
       </ul>
     </li>
@@ -64,8 +69,12 @@
         <li><a href="{% url 'billing:report-repairs' %}">Repairs per House</a></li>
         <li><a href="{% url 'billing:report-estate-costs' %}">Estate Cost Rollup</a></li>
         <li><a href="{% url 'billing:report-advances' %}">Advance Payments</a></li>
+        <li><a href="{% url 'core:report-prospects' %}">Prospects Pipeline</a></li>
+        <li><a href="{% url 'core:report-collections-performance' %}">Collections Performance</a></li>
+        <li><a href="{% url 'core:collections-target-list' %}">Collections Targets</a></li>
+        <li><a href="{% url 'core:collections-bracket-list' %}">Bonus Brackets</a></li>
         <li><a href="{% url 'scoring:score-list' %}">Tenant Credit Scores</a></li>
-        <li><a href="{% url 'dashboard:coming-soon' 'landlord-statements' %}">Landlord Statements</a></li>
+        <li><a href="{% url 'billing:landlord-statement-index' %}">Landlord Statements</a></li>
       </ul>
     </li>
 

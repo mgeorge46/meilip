@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Prospects · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Prospects Report</h1>
+    <p class="muted mb-0">Tenants queued for a house, regardless of current occupancy. Use this to see the sales pipeline and spot clashes.</p>
+  </div>
+</section>
+
+<div class="card filter-bar mb-3">
+  <form method="get" class="filter-grid">
+    <div style="grid-column: span 2;">
+      <label>Search</label>
+      <input type="search" name="q" value="{{ request.GET.q|default:'' }}" class="form-control"
+             placeholder="Tenant, house, or estate name">
+    </div>
+    <div>
+      <label>House occupancy</label>
+      <select name="occupancy" class="form-select">
+        <option value="">Any</option>
+        <option value="VACANT"            {% if request.GET.occupancy == 'VACANT' %}selected{% endif %}>Vacant</option>
+        <option value="OCCUPIED"          {% if request.GET.occupancy == 'OCCUPIED' %}selected{% endif %}>Occupied</option>
+        <option value="UNDER_MAINTENANCE" {% if request.GET.occupancy == 'UNDER_MAINTENANCE' %}selected{% endif %}>Under maintenance</option>
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-outline-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
+      <a href="{% url 'core:report-prospects' %}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </form>
+</div>
+
+{% include "core/_data_toolbar.html" with total_count=paginator.count %}
+
+<div class="data-table-wrap">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Estate</th><th>House</th><th>Occupancy</th>
+        <th>Prospect tenant</th><th>Phone / Email</th><th>Sales rep</th>
+        <th>Created</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in prospects %}
+      <tr>
+        <td>{{ p.house.estate.name }}</td>
+        <td><a href="{% url 'core:house-detail' p.house_id %}" class="fw-semibold">{{ p.house }}</a></td>
+        <td>
+          {% if p.house.occupancy_status == 'VACANT' %}<span class="badge text-bg-success">Vacant</span>
+          {% elif p.house.occupancy_status == 'OCCUPIED' %}<span class="badge text-bg-warning">Occupied</span>
+          {% else %}<span class="badge text-bg-secondary">{{ p.house.get_occupancy_status_display }}</span>{% endif %}
+        </td>
+        <td><a href="{% url 'core:tenant-detail' p.tenant_id %}">{{ p.tenant.full_name }}</a></td>
+        <td class="small">
+          {{ p.tenant.phone|default:"—" }}
+          {% if p.tenant.email %}<br><span class="text-muted">{{ p.tenant.email }}</span>{% endif %}
+        </td>
+        <td>{{ p.sales_rep.full_name|default:"—" }}</td>
+        <td class="small">{{ p.created_at|date:"Y-m-d" }}</td>
+        <td class="text-end">
+          <form method="post" action="{% url 'core:tenancy-activate' p.pk %}" class="d-inline">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-success" type="submit"
+                    {% if p.house.occupancy_status == 'OCCUPIED' %}disabled title="House is occupied — exit the active tenancy first"{% endif %}>
+              Activate
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="empty-row"><td colspan="8">No prospect tenancies. Attach a tenant to a house to create one.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include "core/pagination.html" %}
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}Edit{% else %}New{% endif %} target · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">{% if form.instance.pk %}Edit{% else %}New{% endif %} Collections Target</h1>
+    <p class="muted mb-0">Targets are stored as a single UGX figure per employee per month.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-outline-secondary" href="{% url 'core:collections-target-list' %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+  </div>
+</section>
+
+<form method="post" class="card p-4" novalidate>
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-5">
+      <label class="form-label">Employee <span class="text-danger">*</span></label>
+      {{ form.employee }}
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Month <span class="text-danger">*</span></label>
+      {{ form.month }}
+      <div class="form-text">Any date in the month — will be normalised to day 1.</div>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Target (UGX) <span class="text-danger">*</span></label>
+      {{ form.target_amount }}
+    </div>
+    <div class="col-12">
+      <label class="form-label">Notes</label>
+      {{ form.notes }}
+    </div>
+  </div>
+  {% if form.errors %}
+    <div class="alert alert-danger mt-3">{{ form.errors }}</div>
+  {% endif %}
+  <div class="d-flex gap-2 justify-content-end mt-3">
+    <a class="btn btn-outline-secondary" href="{% url 'core:collections-target-list' %}">Cancel</a>
+    <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Save target</button>
+  </div>
+</form>
+{% endblock %}

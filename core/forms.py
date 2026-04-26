@@ -98,6 +98,13 @@ class TenantForm(forms.ModelForm):
 
 
 class TenantHouseForm(forms.ModelForm):
+    """Attach a tenant to a house.
+
+    On CREATE: only PROSPECT or ACTIVE are selectable — EXITED is reserved for
+    the tenancy-exit workflow and never chosen manually at attach time.
+    On EDIT: all three statuses are shown because admins sometimes need to
+    correct records.
+    """
     class Meta:
         model = TenantHouse
         fields = [
@@ -111,6 +118,17 @@ class TenantHouseForm(forms.ModelForm):
             "move_out_date": forms.DateInput(attrs={"type": "date"}),
             "billing_start_date": forms.DateInput(attrs={"type": "date"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # On a NEW tenancy: hide EXITED from the dropdown and default to PROSPECT.
+        if self.instance.pk is None:
+            self.fields["status"].choices = [
+                (TenantHouse.Status.PROSPECT, "Prospect"),
+                (TenantHouse.Status.ACTIVE, "Active"),
+            ]
+            if not self.initial.get("status"):
+                self.initial["status"] = TenantHouse.Status.PROSPECT
 
 
 class EmployeeForm(forms.ModelForm):
@@ -146,3 +164,33 @@ class SupplierForm(forms.ModelForm):
             "name", "contact_person", "phone", "email", "kind", "tax_id",
             "bank_name", "bank_account_number", "is_active",
         ]
+
+
+# ---------------------------------------------------------------------------
+# Collections targets + bonus brackets (Phase F.2)
+# ---------------------------------------------------------------------------
+from .models import CollectionsBonusBracket, CollectionsTarget
+
+
+class CollectionsTargetForm(forms.ModelForm):
+    class Meta:
+        model = CollectionsTarget
+        fields = ["employee", "month", "target_amount", "notes"]
+        widgets = {
+            "employee": forms.Select(attrs={"class": "form-select"}),
+            "month": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "target_amount": forms.NumberInput(attrs={"class": "form-control text-end num", "inputmode": "numeric"}),
+            "notes": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+        }
+
+
+class CollectionsBonusBracketForm(forms.ModelForm):
+    class Meta:
+        model = CollectionsBonusBracket
+        fields = ["label", "min_amount", "max_amount", "rate_percent", "is_active"]
+        widgets = {
+            "label": forms.TextInput(attrs={"class": "form-control"}),
+            "min_amount": forms.NumberInput(attrs={"class": "form-control text-end num", "inputmode": "numeric"}),
+            "max_amount": forms.NumberInput(attrs={"class": "form-control text-end num", "inputmode": "numeric"}),
+            "rate_percent": forms.NumberInput(attrs={"class": "form-control text-end num", "step": "0.01"}),
+        }

@@ -3,30 +3,157 @@
 {% block content %}
 <section class="page-header between">
   <div>
-    <h1>{{ employee.full_name }}</h1>
-    <p class="muted">{{ employee.user.email }} · {{ employee.phone|default:"—" }}</p>
+    <h1 class="h3 mb-1">{{ employee.full_name }}</h1>
+    <p class="muted mb-0">{{ employee.user.email }} · {{ employee.phone|default:"—" }}</p>
   </div>
-  <div>
-    <a class="btn ghost" href="{% url 'core:employee-list' %}">Back</a>
-    <a class="btn primary" href="{% url 'core:employee-update' employee.pk %}">Edit</a>
+  <div class="actions d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'core:employee-list' %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    <a class="btn btn-primary" href="{% url 'core:employee-update' employee.pk %}"><i class="bi bi-pencil me-1"></i>Edit</a>
   </div>
 </section>
 
-<div class="card">
-  <dl class="kv">
-    <dt>User</dt><dd>{{ employee.user.email }}</dd>
-    <dt>Phone</dt><dd>{{ employee.phone|default:"—" }}</dd>
-    <dt>ID number</dt><dd>{{ employee.id_number|default:"—" }}</dd>
-    <dt>Manager</dt><dd>{{ employee.manager.full_name|default:"—" }}</dd>
-    <dt>Trusted (self-approve payments)</dt>
-    <dd>{% if not employee.requires_checker %}<span class="badge active">Yes</span>{% else %}<span class="badge draft">No</span>{% endif %}</dd>
-    <dt>Active</dt><dd>{% if employee.is_active %}Yes{% else %}No{% endif %}</dd>
-  </dl>
+<ul class="nav nav-tabs detail-tabs" role="tablist" id="employee-tabs">
+  <li class="nav-item"><button class="nav-link {% if active_tab == 'overview' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-overview" data-tab="overview" type="button">Overview</button></li>
+  <li class="nav-item"><button class="nav-link {% if active_tab == 'comp' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-comp" data-tab="comp" type="button">Compensation</button></li>
+  <li class="nav-item"><button class="nav-link {% if active_tab == 'expenses' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-expenses" data-tab="expenses" type="button">Expense Claims <span class="badge text-bg-light ms-1">{{ expense_claims|length }}</span></button></li>
+</ul>
+
+<div class="tab-content">
+  {# ---------- Overview ---------- #}
+  <div class="tab-pane fade {% if active_tab == 'overview' %}show active{% endif %}" id="tab-overview">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="card p-3">
+          <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Profile</h2>
+          <dl class="kv mb-0">
+            <dt>User</dt><dd>{{ employee.user.email }}</dd>
+            <dt>Phone</dt><dd>{{ employee.phone|default:"—" }}</dd>
+            <dt>ID number</dt><dd>{{ employee.id_number|default:"—" }}</dd>
+            <dt>Manager</dt><dd>{{ employee.manager.full_name|default:"—" }}</dd>
+          </dl>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card p-3">
+          <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Status</h2>
+          <dl class="kv mb-0">
+            <dt>Active</dt>
+            <dd>{% if employee.is_active %}<span class="badge text-bg-success">Yes</span>{% else %}<span class="badge text-bg-secondary">No</span>{% endif %}</dd>
+            <dt>Trusted (self-approve payments)</dt>
+            <dd>{% if not employee.requires_checker %}<span class="badge text-bg-success">Yes</span>{% else %}<span class="badge text-bg-secondary">No — requires checker</span>{% endif %}</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <form method="post" action="{% url 'core:employee-delete' employee.pk %}" class="danger-zone mt-4"
+          onsubmit="return confirm('Delete this employee?');">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash me-1"></i>Delete employee</button>
+    </form>
+  </div>
+
+  {# ---------- Compensation ---------- #}
+  <div class="tab-pane fade {% if active_tab == 'comp' %}show active{% endif %}" id="tab-comp">
+    <div class="alert alert-info small">
+      <i class="bi bi-info-circle me-1"></i>
+      Mini-payroll: salary and allowances are stored on the employee profile. Payroll-run workflow and
+      GL posting (Salary Expense / Allowances Expense / PAYE Payable) are <strong>deferred</strong>
+      to a later phase per SPEC.
+    </div>
+
+    <div class="row g-3">
+      <div class="col-lg-8">
+        <div class="card p-0">
+          <div class="data-table-wrap">
+            <table class="table align-middle mb-0">
+              <thead>
+                <tr><th>Component</th><th class="text-end">Amount (UGX / month)</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Base salary</td><td class="text-end num">{{ comp.base }}</td></tr>
+                <tr><td>Transport allowance</td><td class="text-end num">{{ comp.transport }}</td></tr>
+                <tr><td>Housing allowance</td><td class="text-end num">{{ comp.housing }}</td></tr>
+                <tr><td>Airtime allowance</td><td class="text-end num">{{ comp.airtime }}</td></tr>
+                <tr><td>Other allowances</td><td class="text-end num">{{ comp.other }}</td></tr>
+              </tbody>
+              <tfoot>
+                <tr><td>Gross</td><td class="text-end num">{{ comp.gross }}</td></tr>
+                <tr><td>PAYE (monthly)</td><td class="text-end num">−{{ comp.paye }}</td></tr>
+                <tr><td class="fw-bold">Net take-home</td><td class="text-end num fw-bold">{{ comp.net }}</td></tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card p-3">
+          <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Future GL routing</h2>
+          <p class="small text-muted mb-2">When payroll runs are implemented, each run will post:</p>
+          <ul class="small mb-0">
+            <li><code>5410</code> Salary Expense (Dr)</li>
+            <li><code>5420</code> Allowances Expense (Dr)</li>
+            <li><code>2510</code> Salaries Payable (Cr)</li>
+            <li>PAYE Payable (Cr)</li>
+            <li>Bank (Cr) — on disbursement</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ---------- Expense Claims ---------- #}
+  <div class="tab-pane fade {% if active_tab == 'expenses' %}show active{% endif %}" id="tab-expenses">
+    <div class="data-toolbar">
+      <div class="toolbar-meta"><strong>{{ expense_claims|length }}</strong> claim{{ expense_claims|length|pluralize }} on record</div>
+      <div class="toolbar-actions">
+        <a class="btn btn-sm btn-primary" href="{% url 'billing:expense-claim-create' %}?claimant={{ employee.pk }}"><i class="bi bi-plus-lg me-1"></i>New claim</a>
+      </div>
+    </div>
+    <div class="data-table-wrap">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Number</th><th>Category</th><th>Description</th>
+            <th>Incurred</th><th>Receipt</th><th>Status</th>
+            <th class="text-end">Amount (UGX)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in expense_claims %}
+          <tr>
+            <td><a href="{% url 'billing:expense-claim-detail' c.pk %}" class="fw-semibold"><code>{{ c.number }}</code></a></td>
+            <td><span class="badge text-bg-light">{{ c.get_category_display }}</span></td>
+            <td class="text-muted text-truncate" style="max-width:240px;" title="{{ c.description }}">{{ c.description }}</td>
+            <td class="small">{{ c.incurred_at|date:"Y-m-d" }}</td>
+            <td>{% if c.receipt_photo %}<a href="{{ c.receipt_photo.url }}" target="_blank"><i class="bi bi-paperclip"></i></a>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+            <td>
+              {% if c.approval_status == 'APPROVED' or c.approval_status == 'AUTO_APPROVED' %}
+                <span class="badge text-bg-success">{{ c.get_approval_status_display }}</span>
+              {% elif c.approval_status == 'PENDING' %}
+                <span class="badge text-bg-warning">Pending</span>
+              {% elif c.approval_status == 'REJECTED' %}
+                <span class="badge text-bg-danger">Rejected</span>
+              {% else %}<span class="badge text-bg-secondary">{{ c.get_approval_status_display }}</span>{% endif %}
+            </td>
+            <td class="text-end num fw-semibold">{{ c.amount }}</td>
+          </tr>
+          {% empty %}
+          <tr class="empty-row"><td colspan="7">No expense claims yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
-<form method="post" action="{% url 'core:employee-delete' employee.pk %}" class="danger-zone"
-      onsubmit="return confirm('Delete this employee?');">
-  {% csrf_token %}
-  <button type="submit" class="btn danger">Delete employee</button>
-</form>
+<script>
+  document.querySelectorAll('#employee-tabs [data-tab]').forEach(btn => {
+    btn.addEventListener('shown.bs.tab', e => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', e.target.dataset.tab);
+      window.history.replaceState({}, '', url);
+    });
+  });
+</script>
 {% endblock %}

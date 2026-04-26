@@ -1,43 +1,69 @@
 {% extends "accounting/_base.html" %}
-{% block title %}General Ledger{% endblock %}
+{% block accounting_title %}General Ledger{% endblock %}
 {% block accounting_content %}
-<h1>General Ledger</h1>
-<form method="get">
-  <label>Account code: <input name="account" value="{{ filter_account }}"></label>
-  <label>From: <input type="date" name="from" value="{{ filter_from }}"></label>
-  <label>To: <input type="date" name="to" value="{{ filter_to }}"></label>
-  <button type="submit">Filter</button>
-</form>
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">General Ledger</h1>
+    <p class="muted mb-0">All posted journal lines across the chart of accounts.</p>
+  </div>
+</section>
 
-<table>
-  <thead>
-    <tr>
-      <th>Date</th><th>Reference</th><th>Status</th><th>Account</th>
-      <th>Description</th><th class="right">Debit</th><th class="right">Credit</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for line in lines %}
-    <tr>
-      <td>{{ line.entry.entry_date|date:"Y-m-d" }}</td>
-      <td><a href="{% url 'accounting:journal-detail' line.entry.pk %}">{{ line.entry.reference }}</a></td>
-      <td><span class="badge {{ line.entry.status|lower }}">{{ line.entry.get_status_display }}</span></td>
-      <td><a href="{% url 'accounting:account-detail' line.account.pk %}">{{ line.account.code }} {{ line.account.name }}</a></td>
-      <td>{{ line.description|default:line.entry.memo }}</td>
-      <td class="right">{% if line.debit %}{{ line.debit }}{% endif %}</td>
-      <td class="right">{% if line.credit %}{{ line.credit }}{% endif %}</td>
-    </tr>
-    {% empty %}
-    <tr><td colspan="7">No posted entries match.</td></tr>
-    {% endfor %}
-  </tbody>
-  <tfoot>
-    <tr>
-      <th colspan="5" class="right">Totals (posted, filtered):</th>
-      <th class="right">{{ total_debit }}</th>
-      <th class="right">{{ total_credit }}</th>
-    </tr>
-  </tfoot>
-</table>
+<div class="card filter-bar mb-3">
+  <form method="get" class="filter-grid">
+    <div>
+      <label>Account code</label>
+      <input type="text" class="form-control" name="account" value="{{ filter_account }}" placeholder="e.g. 4100">
+    </div>
+    <div>
+      <label>From</label>
+      <input type="date" class="form-control" name="from" value="{{ filter_from }}">
+    </div>
+    <div>
+      <label>To</label>
+      <input type="date" class="form-control" name="to" value="{{ filter_to }}">
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-outline-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
+      <a href="{% url 'accounting:general-ledger' %}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </form>
+</div>
+
+{% include "core/_data_toolbar.html" with total_count=paginator.count %}
+
+<div class="data-table-wrap">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Date</th><th>Reference</th><th>Status</th>
+        <th>Account</th><th>Description</th>
+        <th class="text-end">Debit</th><th class="text-end">Credit</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td>{{ line.entry.entry_date|date:"Y-m-d" }}</td>
+        <td><a href="{% url 'accounting:journal-detail' line.entry.pk %}" class="fw-semibold">{{ line.entry.reference }}</a></td>
+        <td><span class="badge text-bg-light">{{ line.entry.get_status_display }}</span></td>
+        <td><a href="{% url 'accounting:account-detail' line.account.pk %}"><code>{{ line.account.code }}</code> {{ line.account.name }}</a></td>
+        <td class="text-muted">{{ line.description|default:line.entry.memo }}</td>
+        <td class="text-end num">{% if line.debit %}{{ line.debit }}{% endif %}</td>
+        <td class="text-end num">{% if line.credit %}{{ line.credit }}{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr class="empty-row"><td colspan="7">No posted entries match your filters.</td></tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="5" class="text-end">Totals (posted, filtered)</td>
+        <td class="text-end num">{{ total_debit }}</td>
+        <td class="text-end num">{{ total_credit }}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
 {% include "core/pagination.html" %}
 {% endblock %}

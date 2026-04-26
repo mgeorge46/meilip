@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Receipts · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Receipts</h1>
+    <p class="muted mb-0">Payment and refund receipts issued to tenants.</p>
+  </div>
+</section>
+
+<div class="card filter-bar mb-3">
+  <form method="get" class="filter-grid">
+    <div style="grid-column: span 2;">
+      <label>Search</label>
+      <input type="search" name="q" value="{{ request.GET.q|default:'' }}" class="form-control"
+             placeholder="Receipt #, tenant name, or payment reference">
+    </div>
+    <div>
+      <label>Kind</label>
+      <select name="kind" class="form-select">
+        <option value="">All</option>
+        <option value="PAYMENT" {% if request.GET.kind == 'PAYMENT' %}selected{% endif %}>Payment</option>
+        <option value="REFUND"  {% if request.GET.kind == 'REFUND' %}selected{% endif %}>Refund</option>
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-outline-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
+      <a href="{% url 'billing:receipt-list' %}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </form>
+</div>
+
+{% include "core/_data_toolbar.html" with total_count=paginator.count %}
+
+<div class="data-table-wrap">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Number</th><th>Kind</th><th>Tenant</th><th>Payment</th>
+        <th>Issued</th><th class="text-end">Amount (UGX)</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in receipts %}
+      <tr>
+        <td><a href="{% url 'billing:receipt-detail' r.pk %}" class="fw-semibold"><code>{{ r.number }}</code></a></td>
+        <td><span class="badge text-bg-light">{{ r.get_kind_display }}</span></td>
+        <td>
+          {% if r.payment %}
+            {% if r.payment.tenant %}<a href="{% url 'core:tenant-detail' r.payment.tenant_id %}">{{ r.payment.tenant.full_name }}</a>{% else %}—{% endif %}
+          {% elif r.refund %}
+            {% if r.refund.tenant %}<a href="{% url 'core:tenant-detail' r.refund.tenant_id %}">{{ r.refund.tenant.full_name }}</a>{% else %}—{% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td>{% if r.payment %}<code>{{ r.payment.number }}</code>{% elif r.refund %}<code>{{ r.refund.number }}</code>{% else %}—{% endif %}</td>
+        <td>{{ r.issued_at|date:"Y-m-d H:i" }}</td>
+        <td class="text-end num fw-semibold">{{ r.amount }}</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'billing:receipt-detail' r.pk %}">View</a>
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'billing:receipt-detail' r.pk %}?format=pdf" target="_blank" title="Download PDF"><i class="bi bi-file-earmark-pdf"></i></a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="empty-row"><td colspan="7">No receipts match your filters.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include "core/pagination.html" %}
+{% endblock %}

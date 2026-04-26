@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Payout {{ payout.number }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Landlord Payout <code>{{ payout.number }}</code></h1>
+    <p class="muted mb-0">
+      To <a href="{% url 'core:landlord-detail' payout.landlord_id %}">{{ payout.landlord.full_name }}</a>
+      ·
+      {% if payout.approval_status == 'APPROVED' or payout.approval_status == 'AUTO_APPROVED' %}
+        <span class="badge text-bg-success">{{ payout.get_approval_status_display }}</span>
+      {% elif payout.approval_status == 'PENDING' %}
+        <span class="badge text-bg-warning">Pending approval</span>
+      {% elif payout.approval_status == 'REJECTED' %}
+        <span class="badge text-bg-danger">Rejected</span>
+      {% endif %}
+    </p>
+  </div>
+  <div class="actions d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'billing:landlord-payout-list' %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    {% if payout.approval_status == 'PENDING' %}
+      <a class="btn btn-primary" href="{% url 'billing:approvals' %}"><i class="bi bi-check2-circle me-1"></i>Approvals queue</a>
+    {% endif %}
+  </div>
+</section>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card p-3">
+      <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Payout details</h2>
+      <dl class="kv mb-0">
+        <dt>Amount</dt><dd class="num fw-semibold">UGX {{ payout.amount }}</dd>
+        <dt>Method</dt><dd>{{ payout.get_method_display }}</dd>
+        <dt>From bank</dt><dd>{{ payout.bank_account.name }} <span class="text-muted">({{ payout.bank_account.account_number|default:"—" }})</span></dd>
+        <dt>Reference</dt><dd>{{ payout.reference_number|default:"—" }}</dd>
+        <dt>Paid at</dt><dd>{{ payout.paid_at|date:"Y-m-d H:i" }}</dd>
+        <dt>Period</dt><dd>{{ payout.period_from|default:"—" }} → {{ payout.period_to|default:"—" }}</dd>
+        {% if payout.notes %}<dt>Notes</dt><dd>{{ payout.notes|linebreaksbr }}</dd>{% endif %}
+      </dl>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card p-3">
+      <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Approval trail</h2>
+      <dl class="kv mb-0">
+        <dt>Maker</dt>
+        <dd>{% if payout.maker %}{{ payout.maker.get_full_name|default:payout.maker.email }}{% else %}—{% endif %}</dd>
+        <dt>Submitted</dt><dd>{{ payout.submitted_at|date:"Y-m-d H:i"|default:"—" }}</dd>
+        <dt>Checker</dt>
+        <dd>{% if payout.checker %}{{ payout.checker.get_full_name|default:payout.checker.email }}{% else %}—{% endif %}</dd>
+        <dt>Decided</dt><dd>{{ payout.approved_at|date:"Y-m-d H:i"|default:"—" }}</dd>
+        {% if payout.rejection_reason %}<dt>Rejected</dt><dd class="text-danger">{{ payout.rejection_reason }}</dd>{% endif %}
+      </dl>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -64,9 +64,31 @@ def stat_cards(today=None) -> list[dict]:
         applied_at__gte=month_start, applied_at__lt=_add_months(month_start, 1),
     ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
 
-    collection_rate = (
-        float(collected * 100 / billed) if billed else None
-    )
+    # Collection rate. Cascade through windows so the rate is informative
+    # even early in the month: current-month → trailing-30d → trailing-90d.
+    def _rate_for(window_days):
+        ws = today - timedelta(days=window_days)
+        b = Invoice.objects.filter(
+            issue_date__gte=ws,
+            status__in=[
+                Invoice.Status.ISSUED, Invoice.Status.PARTIALLY_PAID,
+                Invoice.Status.PAID, Invoice.Status.OVERDUE,
+            ],
+        ).aggregate(s=Sum("total"))["s"] or Decimal("0")
+        c = PaymentAllocation.objects.filter(
+            is_advance_hold=False, applied_at__gte=ws,
+        ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
+        return (float(c * 100 / b), b) if b > 0 else (None, b)
+
+    if billed > 0:
+        collection_rate = float(collected * 100 / billed)
+        rate_basis = "month"
+    else:
+        collection_rate, _ = _rate_for(30)
+        rate_basis = "30d"
+        if collection_rate is None:
+            collection_rate, _ = _rate_for(90)
+            rate_basis = "90d" if collection_rate is not None else None
 
     # Active occupancy %
     total_houses = House.objects.count()
@@ -75,11 +97,26 @@ def stat_cards(today=None) -> list[dict]:
     ).values("house_id").distinct().count()
     occupancy_pct = (occupied * 100.0 / total_houses) if total_houses else 0.0
 
-    # Overdue invoices
-    overdue_count = Invoice.objects.filter(status=Invoice.Status.OVERDUE).count()
+    # Overdue invoices — derived: due_date < today AND outstanding > 0,
+    # regardless of whether the status flag has been transitioned to
+    # OVERDUE yet. This avoids the dashboard understating exposure when
+    # the periodic "mark as overdue" task hasn't run.
+    overdue_count = 0
     overdue_total = Decimal("0")
-    for inv in Invoice.objects.filter(status=Invoice.Status.OVERDUE).only("total", "id"):
-        overdue_total += inv.outstanding
+    for inv in (
+        Invoice.objects.filter(
+            due_date__lt=today,
+            status__in=[
+                Invoice.Status.ISSUED,
+                Invoice.Status.PARTIALLY_PAID,
+                Invoice.Status.OVERDUE,
+            ],
+        ).only("total", "id", "due_date")
+    ):
+        out = inv.outstanding
+        if out > 0:
+            overdue_count += 1
+            overdue_total += out
 
     active_tenants = Tenant.objects.filter(
         tenancies__status=TenantHouse.Status.ACTIVE,
@@ -109,12 +146,17 @@ def stat_cards(today=None) -> list[dict]:
             "href": None,
         },
         {
-            "label": "Collection rate",
+            "label": (
+                "Collection rate (30d)" if rate_basis == "30d"
+                else "Collection rate (90d)" if rate_basis == "90d"
+                else "Collection rate"
+            ),
             "value": (round(collection_rate, 1) if collection_rate is not None else None),
             "format": "pct",
             "tone": (
-                "success" if (collection_rate or 0) >= 80
-                else "warning" if (collection_rate or 0) >= 50
+                "neutral" if collection_rate is None
+                else "success" if collection_rate >= 80
+                else "warning" if collection_rate >= 50
                 else "danger"
             ),
             "href": None,

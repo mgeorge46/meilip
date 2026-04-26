@@ -3,29 +3,170 @@
 {% block content %}
 <section class="page-header between">
   <div>
-    <h1>{{ supplier.name }}</h1>
-    <p class="muted">{{ supplier.get_kind_display }}</p>
+    <h1 class="h3 mb-1">{{ supplier.name }}</h1>
+    <p class="muted mb-0">
+      <span class="badge text-bg-light">{{ supplier.get_kind_display }}</span>
+      · {% if supplier.is_active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-secondary">Inactive</span>{% endif %}
+      {% if supplier.contact_person %} · {{ supplier.contact_person }}{% endif %}
+    </p>
   </div>
-  <div>
-    <a class="btn ghost" href="{% url 'core:supplier-list' %}">Back</a>
-    <a class="btn primary" href="{% url 'core:supplier-update' supplier.pk %}">Edit</a>
+  <div class="actions d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'core:supplier-list' %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    <a class="btn btn-outline-primary" href="{% url 'billing:supplier-payment-create' %}?supplier={{ supplier.pk }}"><i class="bi bi-cash-coin me-1"></i>Record payment</a>
+    <a class="btn btn-primary" href="{% url 'core:supplier-update' supplier.pk %}"><i class="bi bi-pencil me-1"></i>Edit</a>
   </div>
 </section>
 
-<div class="card">
-  <dl class="kv">
-    <dt>Contact person</dt><dd>{{ supplier.contact_person|default:"—" }}</dd>
-    <dt>Phone</dt><dd>{{ supplier.phone|default:"—" }}</dd>
-    <dt>Email</dt><dd>{{ supplier.email|default:"—" }}</dd>
-    <dt>Tax ID</dt><dd>{{ supplier.tax_id|default:"—" }}</dd>
-    <dt>Bank</dt><dd>{{ supplier.bank_name|default:"—" }} · {{ supplier.bank_account_number|default:"—" }}</dd>
-    <dt>Active</dt><dd>{% if supplier.is_active %}Yes{% else %}No{% endif %}</dd>
-  </dl>
+{# ---- Stat summary row ---- #}
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <div class="card p-3">
+      <div class="text-uppercase text-muted small" style="letter-spacing:.05em;">Total paid (approved)</div>
+      <div class="h4 num mb-0">UGX {{ total_paid }}</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card p-3">
+      <div class="text-uppercase text-muted small" style="letter-spacing:.05em;">Payments on record</div>
+      <div class="h4 num mb-0">{{ payments_total }}</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card p-3">
+      <div class="text-uppercase text-muted small" style="letter-spacing:.05em;">Supplier type</div>
+      <div class="h4 mb-0">{{ supplier.get_kind_display }}</div>
+    </div>
+  </div>
 </div>
 
-<form method="post" action="{% url 'core:supplier-delete' supplier.pk %}" class="danger-zone"
-      onsubmit="return confirm('Delete this supplier?');">
-  {% csrf_token %}
-  <button type="submit" class="btn danger">Delete supplier</button>
-</form>
+<ul class="nav nav-tabs detail-tabs" role="tablist" id="supplier-tabs">
+  <li class="nav-item"><button class="nav-link {% if active_tab == 'overview' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-overview" data-tab="overview" type="button">Overview</button></li>
+  <li class="nav-item"><button class="nav-link {% if active_tab == 'payments' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-payments" data-tab="payments" type="button">Payments <span class="badge text-bg-light ms-1">{{ payments_total }}</span></button></li>
+</ul>
+
+<div class="tab-content">
+  {# ---------- Overview ---------- #}
+  <div class="tab-pane fade {% if active_tab == 'overview' %}show active{% endif %}" id="tab-overview">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="card p-3">
+          <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Contact</h2>
+          <dl class="kv mb-0">
+            <dt>Contact person</dt><dd>{{ supplier.contact_person|default:"—" }}</dd>
+            <dt>Phone</dt><dd>{{ supplier.phone|default:"—" }}</dd>
+            <dt>Email</dt><dd>{{ supplier.email|default:"—" }}</dd>
+            <dt>Tax ID</dt><dd>{{ supplier.tax_id|default:"—" }}</dd>
+          </dl>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card p-3">
+          <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Banking</h2>
+          <dl class="kv mb-0">
+            <dt>Bank</dt><dd>{{ supplier.bank_name|default:"—" }}</dd>
+            <dt>Account #</dt><dd><code>{{ supplier.bank_account_number|default:"—" }}</code></dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <form method="post" action="{% url 'core:supplier-delete' supplier.pk %}" class="danger-zone mt-4"
+          onsubmit="return confirm('Delete this supplier?');">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash me-1"></i>Delete supplier</button>
+    </form>
+  </div>
+
+  {# ---------- Payments ---------- #}
+  <div class="tab-pane fade {% if active_tab == 'payments' %}show active{% endif %}" id="tab-payments">
+    <form method="get" class="card filter-bar mb-3">
+      <input type="hidden" name="tab" value="payments">
+      <div class="filter-grid">
+        <div style="grid-column: span 2;">
+          <label>Search</label>
+          <input type="search" name="pq" value="{{ payments_q }}" class="form-control" placeholder="Payment #, service, invoice ref, external ref, or amount">
+        </div>
+        <div>
+          <label>Page size</label>
+          <select name="pps" class="form-select" onchange="this.form.submit()">
+            {% for s in payments_sizes %}
+              <option value="{{ s }}" {% if s == payments_size %}selected{% endif %}>{{ s }} per page</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="filter-actions">
+          <button type="submit" class="btn btn-outline-primary"><i class="bi bi-search me-1"></i>Search</button>
+          <a href="?tab=payments" class="btn btn-outline-secondary">Reset</a>
+        </div>
+      </div>
+    </form>
+
+    <div class="data-toolbar">
+      <div class="toolbar-meta"><strong>{{ payments_total }}</strong> payment{{ payments_total|pluralize }}{% if payments_q %} matching “{{ payments_q }}”{% endif %}</div>
+      <div class="toolbar-actions">
+        <a class="btn btn-sm btn-primary" href="{% url 'billing:supplier-payment-create' %}?supplier={{ supplier.pk }}"><i class="bi bi-plus-lg me-1"></i>New payment</a>
+      </div>
+    </div>
+
+    <div class="data-table-wrap">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Number</th><th>Service</th><th>Related house</th>
+            <th>Paid at</th><th>Method</th><th>Invoice ref</th>
+            <th>Status</th><th class="text-end">Amount (UGX)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in payments %}
+          <tr>
+            <td><a href="{% url 'billing:supplier-payment-detail' p.pk %}" class="fw-semibold"><code>{{ p.number }}</code></a></td>
+            <td class="text-muted text-truncate" style="max-width:260px;" title="{{ p.service_description }}">{{ p.service_description }}</td>
+            <td>{% if p.related_house %}<a href="{% url 'core:house-detail' p.related_house_id %}">{{ p.related_house }}</a>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+            <td>{{ p.paid_at|date:"Y-m-d H:i" }}</td>
+            <td><span class="badge text-bg-light">{{ p.get_method_display }}</span></td>
+            <td>{{ p.invoice_reference|default:"—" }}</td>
+            <td>
+              {% if p.approval_status == 'APPROVED' or p.approval_status == 'AUTO_APPROVED' %}
+                <span class="badge text-bg-success">{{ p.get_approval_status_display }}</span>
+              {% elif p.approval_status == 'PENDING' %}
+                <span class="badge text-bg-warning">Pending</span>
+              {% elif p.approval_status == 'REJECTED' %}
+                <span class="badge text-bg-danger">Rejected</span>
+              {% else %}<span class="badge text-bg-secondary">{{ p.get_approval_status_display }}</span>{% endif %}
+            </td>
+            <td class="text-end num fw-semibold">{{ p.amount }}</td>
+          </tr>
+          {% empty %}
+          <tr class="empty-row"><td colspan="8">{% if payments_q %}No payments match “{{ payments_q }}”.{% else %}No payments to this supplier.{% endif %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if payments_page.has_other_pages %}
+    <nav class="mt-3" aria-label="Payment pages">
+      <ul class="pagination pagination-sm mb-0 justify-content-end">
+        <li class="page-item {% if not payments_page.has_previous %}disabled{% endif %}">
+          <a class="page-link" href="?tab=payments&pq={{ payments_q }}&pps={{ payments_size }}&pp={{ payments_page.previous_page_number|default:1 }}">Previous</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">Page {{ payments_page.number }} of {{ payments_page.paginator.num_pages }}</span></li>
+        <li class="page-item {% if not payments_page.has_next %}disabled{% endif %}">
+          <a class="page-link" href="?tab=payments&pq={{ payments_q }}&pps={{ payments_size }}&pp={{ payments_page.next_page_number|default:payments_page.paginator.num_pages }}">Next</a>
+        </li>
+      </ul>
+    </nav>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('#supplier-tabs [data-tab]').forEach(btn => {
+    btn.addEventListener('shown.bs.tab', e => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', e.target.dataset.tab);
+      window.history.replaceState({}, '', url);
+    });
+  });
+</script>
 {% endblock %}

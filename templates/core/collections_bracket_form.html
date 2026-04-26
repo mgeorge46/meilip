@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}Edit{% else %}New{% endif %} bonus bracket · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">{% if form.instance.pk %}Edit{% else %}New{% endif %} Bonus Bracket</h1>
+    <p class="muted mb-0">A bracket: "if collected ∈ [from, to], pay <em>rate%</em> of collected as bonus."</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-outline-secondary" href="{% url 'core:collections-bracket-list' %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+  </div>
+</section>
+
+<form method="post" class="card p-4" novalidate>
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Label <span class="text-danger">*</span></label>
+      {{ form.label }}
+      <div class="form-text">Shown in reports, e.g. "100k–2M tier".</div>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Rate % <span class="text-danger">*</span></label>
+      {{ form.rate_percent }}
+    </div>
+    <div class="col-md-3 d-flex align-items-end">
+      <div class="form-check">
+        {{ form.is_active }}
+        <label class="form-check-label ms-1">Active</label>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">From (UGX, inclusive) <span class="text-danger">*</span></label>
+      {{ form.min_amount }}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">To (UGX, inclusive)</label>
+      {{ form.max_amount }}
+      <div class="form-text">Leave blank for "and above" (top tier).</div>
+    </div>
+  </div>
+  {% if form.errors %}<div class="alert alert-danger mt-3">{{ form.errors }}</div>{% endif %}
+  <div class="d-flex gap-2 justify-content-end mt-3">
+    <a class="btn btn-outline-secondary" href="{% url 'core:collections-bracket-list' %}">Cancel</a>
+    <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Save bracket</button>
+  </div>
+</form>
+{% endblock %}

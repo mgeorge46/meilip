@@ -101,15 +101,159 @@
   </div>
 
   {% if settlement and settlement.plan %}
-  <div class="card" style="padding:1rem;margin-top:1rem;background:#f4f6f8">
-    <h3>Computed plan</h3>
-    <pre style="font-family:monospace;white-space:pre-wrap">{{ settlement.plan }}</pre>
-    <p><strong>Final refund:</strong> {{ settlement.final_refund_amount }} UGX</p>
+  {% with plan=settlement.plan %}
+  <div class="card p-3 mt-3" style="background:#f8fafc">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h3 class="h5 mb-0"><i class="bi bi-diagram-3 me-2 text-primary"></i>Computed settlement plan</h3>
+      <div>
+        <span class="badge text-bg-light me-1">Ownership: {{ plan.ownership|default:"—" }}</span>
+        <span class="badge status-{{ settlement.status|lower }}">{{ settlement.get_status_display }}</span>
+        <span class="badge status-{{ settlement.approval_status|lower }}">{{ settlement.get_approval_status_display }}</span>
+      </div>
+    </div>
+
+    {# ---- starting balances row ---- #}
+    <div class="row g-2 mb-3">
+      <div class="col-md-3 col-6">
+        <div class="card p-2 h-100">
+          <div class="small text-muted text-uppercase" style="letter-spacing:.05em;">Outstanding at start</div>
+          <div class="h5 num mb-0 {% if plan.outstanding_start and plan.outstanding_start != '0' %}text-danger{% endif %}">UGX {{ plan.outstanding_start|default:0 }}</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="card p-2 h-100">
+          <div class="small text-muted text-uppercase" style="letter-spacing:.05em;">Damages</div>
+          <div class="h5 num mb-0">UGX {{ plan.damages_total|default:0 }}</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="card p-2 h-100">
+          <div class="small text-muted text-uppercase" style="letter-spacing:.05em;">Held advance</div>
+          <div class="h5 num mb-0">UGX {{ plan.held_managed_start|default:0 }}<span class="small text-muted"> mgd</span> · {{ plan.held_meili_start|default:0 }}<span class="small text-muted"> meili</span></div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="card p-2 h-100">
+          <div class="small text-muted text-uppercase" style="letter-spacing:.05em;">Deposit at start</div>
+          <div class="h5 num mb-0">UGX {{ plan.deposit_start|default:0 }}</div>
+        </div>
+      </div>
+    </div>
+
+    {# ---- step-by-step flow ---- #}
+    <ol class="list-unstyled mb-0">
+      {# Step 1 — apply held advance to outstanding invoices #}
+      <li class="d-flex gap-3 mb-3">
+        <div class="badge text-bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;flex-shrink:0;">1</div>
+        <div class="flex-grow-1">
+          <div class="fw-semibold">Apply held advance to outstanding invoices</div>
+          {% if plan.step_1_apply_to_invoices %}
+            <table class="table table-sm mb-0 mt-1">
+              <thead><tr><th>Invoice</th><th class="text-end">Applied (UGX)</th></tr></thead>
+              <tbody>
+                {% for row in plan.step_1_apply_to_invoices %}
+                  <tr><td><code>{{ row.invoice_id|default:row.invoice }}</code></td><td class="text-end num">{{ row.amount|default:row.applied|default:0 }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <div class="small text-muted">No outstanding invoices to settle.</div>
+          {% endif %}
+        </div>
+      </li>
+
+      {# Step 2 — apply held advance + deposit to damages #}
+      <li class="d-flex gap-3 mb-3">
+        <div class="badge text-bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;flex-shrink:0;">2</div>
+        <div class="flex-grow-1">
+          <div class="fw-semibold">Apply remaining advance + deposit to damages</div>
+          {% if plan.step_2_apply_to_damages %}
+            <table class="table table-sm mb-0 mt-1">
+              <thead><tr><th>Damage</th><th class="text-end">Applied (UGX)</th></tr></thead>
+              <tbody>
+                {% for row in plan.step_2_apply_to_damages %}
+                  <tr><td>{{ row.description|default:"—" }}</td><td class="text-end num">{{ row.amount|default:row.applied|default:0 }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <div class="small text-muted">No damages, or advance already exhausted.</div>
+          {% endif %}
+          {% if plan.step_2_deposit_applied_to_damages and plan.step_2_deposit_applied_to_damages != '0' %}
+            <div class="small mt-1">Deposit drawn down: <span class="num fw-semibold">UGX {{ plan.step_2_deposit_applied_to_damages }}</span></div>
+          {% endif %}
+        </div>
+      </li>
+
+      {# Step 3 — transfer to other tenancy #}
+      <li class="d-flex gap-3 mb-3">
+        <div class="badge text-bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;flex-shrink:0;">3</div>
+        <div class="flex-grow-1">
+          <div class="fw-semibold">Transfer remaining advance to another active tenancy <span class="small text-muted">(optional)</span></div>
+          {% if plan.step_3_transfers %}
+            <table class="table table-sm mb-0 mt-1">
+              <thead><tr><th>To tenancy</th><th class="text-end">Transferred (UGX)</th></tr></thead>
+              <tbody>
+                {% for t in plan.step_3_transfers %}
+                  <tr><td><code>{{ t.tenancy_id|default:t.to_tenancy_id|default:t }}</code></td><td class="text-end num">{{ t.amount|default:0 }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <div class="small text-muted">No transfers selected.</div>
+          {% endif %}
+        </div>
+      </li>
+
+      {# Step 4 — refund the remainder #}
+      <li class="d-flex gap-3 mb-0">
+        <div class="badge text-bg-success rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;flex-shrink:0;">4</div>
+        <div class="flex-grow-1">
+          <div class="fw-semibold">Refund the remainder to the tenant</div>
+          {% with refund=plan.step_4_refund %}
+          <div class="row g-2 mt-1">
+            <div class="col-md-4">
+              <div class="small text-muted text-uppercase" style="letter-spacing:.05em;">Refund total</div>
+              <div class="h5 num mb-0 text-success">UGX {{ refund.total|default:0 }}</div>
+            </div>
+            <div class="col-md-4">
+              <div class="small text-muted text-uppercase" style="letter-spacing:.05em;">From advance</div>
+              <div class="num">UGX {{ refund.advance_remainder|default:0 }}</div>
+            </div>
+            <div class="col-md-4">
+              <div class="small text-muted text-uppercase" style="letter-spacing:.05em;">From deposit</div>
+              <div class="num">UGX {{ refund.deposit_remainder|default:0 }}</div>
+            </div>
+          </div>
+          {% endwith %}
+        </div>
+      </li>
+    </ol>
+
+    {# ---- final summary ---- #}
+    <hr class="my-3">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="card p-3 text-center" style="background:{% if settlement.final_refund_amount %}#d1fae5{% else %}#f3f4f6{% endif %};">
+          <div class="text-uppercase small text-muted" style="letter-spacing:.05em;">Final refund to tenant</div>
+          <div class="h3 num mb-0">UGX {{ settlement.final_refund_amount }}</div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card p-3 text-center" style="background:{% if settlement.landlord_shortfall %}#fee2e2{% else %}#f3f4f6{% endif %};">
+          <div class="text-uppercase small text-muted" style="letter-spacing:.05em;">Landlord shortfall</div>
+          <div class="h3 num mb-0">UGX {{ settlement.landlord_shortfall|default:0 }}</div>
+        </div>
+      </div>
+    </div>
     {% if settlement.landlord_shortfall %}
-    <p><strong>Landlord shortfall:</strong> {{ settlement.landlord_shortfall }} UGX</p>
+      <div class="alert alert-warning small mt-3 mb-0">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        The damages and outstanding balance exceed the held advance + deposit. The landlord absorbs <strong class="num">UGX {{ settlement.landlord_shortfall }}</strong> from this settlement.
+      </div>
     {% endif %}
-    <p class="muted">Status: {{ settlement.get_status_display }} · Approval: {{ settlement.get_approval_status_display }}</p>
   </div>
+  {% endwith %}
   {% endif %}
 
   <div class="form-actions" style="margin-top:1rem">

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Landlord statements · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Landlord Statements</h1>
+    <p class="muted mb-0">Pick a landlord to view their monthly statement.</p>
+  </div>
+</section>
+
+<div class="card filter-bar mb-3">
+  <form method="get" class="filter-grid">
+    <div style="grid-column: span 3;">
+      <label>Search</label>
+      <input type="search" name="q" value="{{ request.GET.q|default:'' }}" class="form-control"
+             placeholder="Name, phone, or email">
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-outline-primary"><i class="bi bi-search me-1"></i>Search</button>
+      <a href="{% url 'billing:landlord-statement-index' %}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </form>
+</div>
+
+{% include "core/_data_toolbar.html" with total_count=paginator.count %}
+
+<div class="data-table-wrap">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Landlord</th><th>Ownership</th><th>Phone</th><th>Email</th>
+        <th class="text-end">Estates</th><th class="text-end">Houses</th><th class="text-end">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in landlords %}
+      <tr>
+        <td><a href="{% url 'core:landlord-detail' l.pk %}" class="fw-semibold">{{ l.full_name }}</a></td>
+        <td>
+          {% if l.is_meili_owned %}<span class="badge text-bg-primary">Meili-owned</span>
+          {% else %}<span class="badge text-bg-info">Managed</span>{% endif %}
+        </td>
+        <td>{{ l.phone|default:"—" }}</td>
+        <td>{{ l.email|default:"—" }}</td>
+        <td class="text-end num">{{ l.estates.count }}</td>
+        <td class="text-end num">{{ l.houses.count }}</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-primary" href="{% url 'billing:landlord-statement' l.pk %}">
+            <i class="bi bi-file-earmark-text me-1"></i>View statement
+          </a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="empty-row"><td colspan="7">No landlords match.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include "core/pagination.html" %}
+{% endblock %}

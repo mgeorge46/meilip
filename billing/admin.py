@@ -7,16 +7,19 @@ from .models import (
     CommissionPosting,
     CreditNote,
     ExitSettlement,
+    ExpenseClaim,
     Invoice,
     InvoiceLine,
     InvoiceTaxLine,
     InvoiceVoid,
+    LandlordPayout,
     Payment,
     PaymentAllocation,
     Receipt,
     Refund,
     SecurityDeposit,
     SecurityDepositMovement,
+    SupplierPayment,
 )
 from .sequences import NumberSequence
 
@@ -92,3 +95,27 @@ class ExitSettlementAdmin(admin.ModelAdmin):
         "final_refund_amount", "landlord_shortfall",
         "executed_at", "executed_by",
     )
+
+
+@admin.register(LandlordPayout)
+class LandlordPayoutAdmin(admin.ModelAdmin):
+    list_display = ("number", "landlord", "amount", "method", "approval_status", "paid_at")
+    list_filter = ("method", "approval_status")
+    search_fields = ("number", "reference_number", "landlord__full_name")
+    readonly_fields = ("number", "approval_status", "maker", "checker", "submitted_at", "approved_at")
+
+
+@admin.register(SupplierPayment)
+class SupplierPaymentAdmin(admin.ModelAdmin):
+    list_display = ("number", "supplier", "service_description", "amount", "method", "approval_status", "paid_at")
+    list_filter = ("method", "approval_status")
+    search_fields = ("number", "reference_number", "invoice_reference", "supplier__name", "service_description")
+    readonly_fields = ("number", "approval_status", "maker", "checker", "submitted_at", "approved_at")
+
+
+@admin.register(ExpenseClaim)
+class ExpenseClaimAdmin(admin.ModelAdmin):
+    list_display = ("number", "claimant", "category", "amount", "approval_status", "incurred_at")
+    list_filter = ("category", "approval_status")
+    search_fields = ("number", "description", "claimant__full_name")
+    readonly_fields = ("number", "approval_status", "maker", "checker", "submitted_at", "approved_at")

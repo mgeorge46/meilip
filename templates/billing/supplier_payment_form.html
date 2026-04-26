@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}New supplier payment · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">New Supplier Payment</h1>
+    <p class="muted mb-0">Record a payment to a supplier. Submits for maker-checker approval (unless you're trusted).</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-outline-secondary" href="{% url 'billing:supplier-payment-list' %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+  </div>
+</section>
+
+<form method="post" class="card p-4" novalidate>
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Supplier <span class="text-danger">*</span></label>
+      {{ form.supplier }}
+      {% if form.supplier.errors %}<div class="invalid-feedback d-block">{{ form.supplier.errors|join:", " }}</div>{% endif %}
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Amount (UGX) <span class="text-danger">*</span></label>
+      {{ form.amount }}
+      {% if form.amount.errors %}<div class="invalid-feedback d-block">{{ form.amount.errors|join:", " }}</div>{% endif %}
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Paid at</label>
+      {{ form.paid_at }}
+    </div>
+
+    <div class="col-12">
+      <label class="form-label">Service description <span class="text-danger">*</span></label>
+      {{ form.service_description }}
+      <div class="form-text">What was the supplier paid for? (e.g. "Plumbing repair — Buziga A2", "April cleaning services")</div>
+      {% if form.service_description.errors %}<div class="invalid-feedback d-block">{{ form.service_description.errors|join:", " }}</div>{% endif %}
+    </div>
+
+    <div class="col-md-4">
+      <label class="form-label">Method <span class="text-danger">*</span></label>
+      {{ form.method }}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">From bank account <span class="text-danger">*</span></label>
+      {{ form.bank_account }}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Related house</label>
+      {{ form.related_house }}
+      <div class="form-text">Optional — for cost allocation.</div>
+    </div>
+
+    <div class="col-md-6">
+      <label class="form-label">Supplier invoice #</label>
+      {{ form.invoice_reference }}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">External reference</label>
+      {{ form.reference_number }}
+      <div class="form-text">Bank ref, MoMo txn id, cheque no.</div>
+    </div>
+
+    <div class="col-12">
+      <label class="form-label">Notes</label>
+      {{ form.notes }}
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 justify-content-end mt-4">
+    <a class="btn btn-outline-secondary" href="{% url 'billing:supplier-payment-list' %}">Cancel</a>
+    <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Submit payment</button>
+  </div>
+</form>
+{% endblock %}

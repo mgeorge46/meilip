@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Expense claims · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Expense Claims</h1>
+    <p class="muted mb-0">Employee-submitted expenses (with receipt photos). Maker-checker approval posts to the GL.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="{% url 'billing:expense-claim-create' %}"><i class="bi bi-plus-lg me-1"></i>New claim</a>
+  </div>
+</section>
+
+<div class="card filter-bar mb-3">
+  <form method="get" class="filter-grid">
+    <div style="grid-column: span 2;">
+      <label>Search</label>
+      <input type="search" name="q" value="{{ request.GET.q|default:'' }}" class="form-control"
+             placeholder="Number, description, claimant name, or amount">
+    </div>
+    <div>
+      <label>Category</label>
+      <select name="category" class="form-select">
+        <option value="">All</option>
+        <option value="MAINTENANCE_REPAIRS" {% if request.GET.category == 'MAINTENANCE_REPAIRS' %}selected{% endif %}>Maintenance &amp; Repairs</option>
+        <option value="UTILITIES"           {% if request.GET.category == 'UTILITIES' %}selected{% endif %}>Utilities</option>
+        <option value="TRANSPORT"           {% if request.GET.category == 'TRANSPORT' %}selected{% endif %}>Transport</option>
+        <option value="OFFICE_SUPPLIES"     {% if request.GET.category == 'OFFICE_SUPPLIES' %}selected{% endif %}>Office supplies</option>
+        <option value="COMMS"               {% if request.GET.category == 'COMMS' %}selected{% endif %}>Communications</option>
+        <option value="LEGAL_PROFESSIONAL"  {% if request.GET.category == 'LEGAL_PROFESSIONAL' %}selected{% endif %}>Legal &amp; professional</option>
+        <option value="OTHER"               {% if request.GET.category == 'OTHER' %}selected{% endif %}>Other</option>
+      </select>
+    </div>
+    <div>
+      <label>Status</label>
+      <select name="status" class="form-select">
+        <option value="">Any</option>
+        <option value="PENDING"   {% if request.GET.status == 'PENDING' %}selected{% endif %}>Pending</option>
+        <option value="APPROVED"  {% if request.GET.status == 'APPROVED' %}selected{% endif %}>Approved</option>
+        <option value="REJECTED"  {% if request.GET.status == 'REJECTED' %}selected{% endif %}>Rejected</option>
+        <option value="SENT_BACK" {% if request.GET.status == 'SENT_BACK' %}selected{% endif %}>Sent back</option>
+      </select>
+    </div>
+    <div>
+      <label>Incurred from</label>
+      <input type="date" name="from" class="form-control" value="{{ request.GET.from|default:'' }}">
+    </div>
+    <div>
+      <label>Incurred to</label>
+      <input type="date" name="to" class="form-control" value="{{ request.GET.to|default:'' }}">
+    </div>
+    <div>
+      <label>Page size</label>
+      <select name="page_size" class="form-select" onchange="this.form.submit()">
+        {% for s in page_size_options %}
+          <option value="{{ s }}" {% if s == current_page_size %}selected{% endif %}>{{ s }}/page</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-outline-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
+      <a href="{% url 'billing:expense-claim-list' %}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </form>
+</div>
+
+{% include "core/_data_toolbar.html" with total_count=paginator.count %}
+
+<div class="data-table-wrap">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Number</th><th>Claimant</th><th>Category</th><th>Description</th>
+        <th>House</th><th>Incurred</th><th>Receipt</th>
+        <th>Status</th><th class="text-end">Amount (UGX)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in claims %}
+      <tr>
+        <td><a href="{% url 'billing:expense-claim-detail' c.pk %}" class="fw-semibold"><code>{{ c.number }}</code></a></td>
+        <td>{{ c.claimant.full_name }}</td>
+        <td><span class="badge text-bg-light">{{ c.get_category_display }}</span></td>
+        <td class="text-muted text-truncate" style="max-width:240px;" title="{{ c.description }}">{{ c.description }}</td>
+        <td>{% if c.related_house %}<a href="{% url 'core:house-detail' c.related_house_id %}">{{ c.related_house }}</a>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td class="small">{{ c.incurred_at|date:"Y-m-d" }}</td>
+        <td>
+          {% if c.receipt_photo %}<a href="{{ c.receipt_photo.url }}" target="_blank" title="View receipt"><i class="bi bi-paperclip"></i></a>
+          {% else %}<span class="text-muted">—</span>{% endif %}
+        </td>
+        <td>
+          {% if c.approval_status == 'APPROVED' or c.approval_status == 'AUTO_APPROVED' %}
+            <span class="badge text-bg-success">{{ c.get_approval_status_display }}</span>
+          {% elif c.approval_status == 'PENDING' %}
+            <span class="badge text-bg-warning">Pending</span>
+          {% elif c.approval_status == 'REJECTED' %}
+            <span class="badge text-bg-danger">Rejected</span>
+          {% else %}<span class="badge text-bg-secondary">{{ c.get_approval_status_display }}</span>{% endif %}
+        </td>
+        <td class="text-end num fw-semibold">{{ c.amount }}</td>
+      </tr>
+      {% empty %}
+      <tr class="empty-row"><td colspan="9">No expense claims match your filters.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include "core/pagination.html" %}
+{% endblock %}

@@ -1,41 +1,65 @@
 {% extends "accounting/_base.html" %}
-{% block title %}Commission Income Report{% endblock %}
+{% block accounting_title %}Commission Income{% endblock %}
 {% block accounting_content %}
-<h1>Commission Income Report</h1>
-<p class="muted">Drill-down on <strong>{{ account.code }} — {{ account.name }}</strong>. Isolated from Rent Income per SPEC §14.2.</p>
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Commission Income Report</h1>
+    <p class="muted mb-0">Drill-down on <code>{{ account.code }}</code> — {{ account.name }}. Isolated from Rent Income per SPEC §14.2.</p>
+  </div>
+</section>
 
-<form method="get">
-  <label>From: <input type="date" name="from" value="{{ date_from }}"></label>
-  <label>To: <input type="date" name="to" value="{{ date_to }}"></label>
-  <button type="submit">Update</button>
-</form>
+<div class="card filter-bar mb-3">
+  <form method="get" class="filter-grid">
+    <div>
+      <label>From</label>
+      <input type="date" class="form-control" name="from" value="{{ date_from }}">
+    </div>
+    <div>
+      <label>To</label>
+      <input type="date" class="form-control" name="to" value="{{ date_to }}">
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-outline-primary"><i class="bi bi-funnel me-1"></i>Update</button>
+      <a href="{% url 'accounting:commission-report' %}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </form>
+</div>
 
-<table>
-  <thead><tr><th>Date</th><th>Reference</th><th>Source</th><th>Description</th><th class="right">Debit</th><th class="right">Credit</th></tr></thead>
-  <tbody>
-    {% for line in lines %}
-    <tr>
-      <td>{{ line.entry.entry_date|date:"Y-m-d" }}</td>
-      <td><a href="{% url 'accounting:journal-detail' line.entry.pk %}">{{ line.entry.reference }}</a></td>
-      <td>{{ line.entry.get_source_display }}</td>
-      <td>{{ line.description|default:line.entry.memo }}</td>
-      <td class="right">{% if line.debit %}{{ line.debit }}{% endif %}</td>
-      <td class="right">{% if line.credit %}{{ line.credit }}{% endif %}</td>
-    </tr>
-    {% empty %}
-    <tr><td colspan="6">No commission activity in the selected period.</td></tr>
-    {% endfor %}
-  </tbody>
-  <tfoot>
-    <tr>
-      <th colspan="4" class="right">Totals</th>
-      <th class="right">{{ debits }}</th>
-      <th class="right">{{ credits }}</th>
-    </tr>
-    <tr>
-      <th colspan="4" class="right">Recognised commission income (UGX)</th>
-      <th colspan="2" class="right">{{ recognised }}</th>
-    </tr>
-  </tfoot>
-</table>
+{% include "core/_data_toolbar.html" with total_count=lines.count %}
+
+<div class="data-table-wrap">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Date</th><th>Reference</th><th>Source</th><th>Description</th>
+        <th class="text-end">Debit</th><th class="text-end">Credit</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td>{{ line.entry.entry_date|date:"Y-m-d" }}</td>
+        <td><a href="{% url 'accounting:journal-detail' line.entry.pk %}" class="fw-semibold">{{ line.entry.reference }}</a></td>
+        <td><span class="badge text-bg-light">{{ line.entry.get_source_display }}</span></td>
+        <td class="text-muted">{{ line.description|default:line.entry.memo }}</td>
+        <td class="text-end num">{% if line.debit %}{{ line.debit }}{% endif %}</td>
+        <td class="text-end num">{% if line.credit %}{{ line.credit }}{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr class="empty-row"><td colspan="6">No commission activity in the selected period.</td></tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4" class="text-end">Totals</td>
+        <td class="text-end num">{{ debits }}</td>
+        <td class="text-end num">{{ credits }}</td>
+      </tr>
+      <tr>
+        <td colspan="4" class="text-end">Recognised commission income (UGX)</td>
+        <td colspan="2" class="text-end num">{{ recognised }}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
 {% endblock %}

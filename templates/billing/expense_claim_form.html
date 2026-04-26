@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}New expense claim · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">New Expense Claim</h1>
+    <p class="muted mb-0">Attach your receipt and submit for approval. Expense claims always require a checker — no trusted auto-approval.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-outline-secondary" href="{% url 'billing:expense-claim-list' %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+  </div>
+</section>
+
+<form method="post" enctype="multipart/form-data" class="card p-4" novalidate>
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Claimant (employee) <span class="text-danger">*</span></label>
+      {{ form.claimant }}
+      {% if form.claimant.errors %}<div class="invalid-feedback d-block">{{ form.claimant.errors|join:", " }}</div>{% endif %}
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Amount (UGX) <span class="text-danger">*</span></label>
+      {{ form.amount }}
+      {% if form.amount.errors %}<div class="invalid-feedback d-block">{{ form.amount.errors|join:", " }}</div>{% endif %}
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Incurred on <span class="text-danger">*</span></label>
+      {{ form.incurred_at }}
+    </div>
+
+    <div class="col-md-6">
+      <label class="form-label">Category <span class="text-danger">*</span></label>
+      {{ form.category }}
+      <div class="form-text">Determines which expense account the approved claim posts to.</div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Related house</label>
+      {{ form.related_house }}
+      <div class="form-text">Optional — helps with cost allocation per-house reports.</div>
+    </div>
+
+    <div class="col-12">
+      <label class="form-label">Description <span class="text-danger">*</span></label>
+      {{ form.description }}
+      {% if form.description.errors %}<div class="invalid-feedback d-block">{{ form.description.errors|join:", " }}</div>{% endif %}
+    </div>
+
+    <div class="col-12">
+      <label class="form-label">Receipt photo (image or PDF)</label>
+      {{ form.receipt_photo }}
+      <div class="form-text">Recommended — attach a photo of your receipt.</div>
+    </div>
+
+    <div class="col-12">
+      <label class="form-label">Notes</label>
+      {{ form.notes }}
+    </div>
+
+    <div class="col-12">
+      <div class="alert alert-info small mb-0">
+        <i class="bi bi-info-circle me-1"></i>
+        Finance will pick the reimbursement account when approving your claim. You don't need to.
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 justify-content-end mt-4">
+    <a class="btn btn-outline-secondary" href="{% url 'billing:expense-claim-list' %}">Cancel</a>
+    <button type="submit" class="btn btn-primary"><i class="bi bi-upload me-1"></i>Submit claim</button>
+  </div>
+</form>
+{% endblock %}

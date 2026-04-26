@@ -1,31 +1,129 @@
 {% extends "accounting/_base.html" %}
-{% block title %}New Journal Entry{% endblock %}
+{% block accounting_title %}New Journal Entry{% endblock %}
 {% block accounting_content %}
-<h1>New Journal Entry</h1>
-<form method="post">
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">New Journal Entry</h1>
+    <p class="muted mb-0">Double-entry only. Debits must equal credits before posting.</p>
+  </div>
+  <div class="actions">
+    <a href="{% url 'accounting:general-ledger' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back to Ledger</a>
+  </div>
+</section>
+
+<form method="post" id="journal-form" novalidate>
   {% csrf_token %}
-  <div>{{ form.as_p }}</div>
 
-  <h2>Lines</h2>
-  {{ formset.management_form }}
-  <table>
-    <thead><tr><th>Account</th><th>Debit</th><th>Credit</th><th>Description</th><th>Delete</th></tr></thead>
-    <tbody>
-    {% for f in formset.forms %}
-      <tr>
-        <td>{{ f.account }}{{ f.id }}{% if f.non_field_errors %}<div>{{ f.non_field_errors }}</div>{% endif %}</td>
-        <td>{{ f.debit }}</td>
-        <td>{{ f.credit }}</td>
-        <td>{{ f.description }}</td>
-        <td>{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  {% if formset.non_form_errors %}<div class="messages">{{ formset.non_form_errors }}</div>{% endif %}
+  <div class="card p-4 mb-3">
+    <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Header</h2>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Entry date {% if form.entry_date.field.required %}<span class="text-danger">*</span>{% endif %}</label>
+        {{ form.entry_date }}
+        {% if form.entry_date.errors %}<div class="invalid-feedback d-block">{{ form.entry_date.errors|join:", " }}</div>{% endif %}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Source {% if form.source.field.required %}<span class="text-danger">*</span>{% endif %}</label>
+        {{ form.source }}
+        {% if form.source.errors %}<div class="invalid-feedback d-block">{{ form.source.errors|join:", " }}</div>{% endif %}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Memo {% if form.memo.field.required %}<span class="text-danger">*</span>{% endif %}</label>
+        {{ form.memo }}
+        {% if form.memo.errors %}<div class="invalid-feedback d-block">{{ form.memo.errors|join:", " }}</div>{% endif %}
+      </div>
+    </div>
+  </div>
 
-  <p class="muted">Debits must equal credits before posting. Save as draft to edit later.</p>
-  <button type="submit" name="save" value="1">Save draft</button>
-  <button type="submit" name="post" value="1" class="primary">Save &amp; post</button>
+  <div class="card p-4 mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="h6 text-uppercase text-muted mb-0" style="letter-spacing:.05em;">Lines</h2>
+      <div class="d-flex align-items-center gap-3">
+        <span class="small text-muted">
+          Debits: <strong class="num" id="total-debit">0</strong>
+          &nbsp;·&nbsp; Credits: <strong class="num" id="total-credit">0</strong>
+        </span>
+        <span class="badge text-bg-secondary" id="balance-badge">Unbalanced</span>
+      </div>
+    </div>
+
+    {{ formset.management_form }}
+
+    <div class="data-table-wrap">
+      <table class="table align-middle mb-0" id="lines-table">
+        <thead>
+          <tr>
+            <th style="min-width: 260px;">Account</th>
+            <th class="text-end" style="width: 160px;">Debit</th>
+            <th class="text-end" style="width: 160px;">Credit</th>
+            <th>Description</th>
+            <th class="text-center" style="width: 70px;">Delete</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for f in formset.forms %}
+          <tr class="je-line">
+            <td>
+              {{ f.account }}{{ f.id }}
+              {% if f.account.errors %}<div class="invalid-feedback d-block">{{ f.account.errors|join:", " }}</div>{% endif %}
+              {% if f.non_field_errors %}<div class="invalid-feedback d-block">{{ f.non_field_errors }}</div>{% endif %}
+            </td>
+            <td class="text-end">{{ f.debit }}</td>
+            <td class="text-end">{{ f.credit }}</td>
+            <td>{{ f.description }}</td>
+            <td class="text-center">{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if formset.non_form_errors %}
+      <div class="alert alert-danger mt-3 mb-0">{{ formset.non_form_errors }}</div>
+    {% endif %}
+
+    <p class="muted small mt-3 mb-0">Need more lines? Save as draft, then add more on the edit screen — the formset accepts extras on submit.</p>
+  </div>
+
+  <div class="d-flex gap-2 justify-content-end">
+    <a href="{% url 'accounting:general-ledger' %}" class="btn btn-outline-secondary">Cancel</a>
+    <button type="submit" name="save" value="1" class="btn btn-outline-primary"><i class="bi bi-save me-1"></i>Save draft</button>
+    <button type="submit" name="post" value="1" class="btn btn-primary" id="btn-post" disabled><i class="bi bi-check2-circle me-1"></i>Save &amp; post</button>
+  </div>
 </form>
+
+<script>
+(function(){
+  const table = document.getElementById('lines-table');
+  const totalD = document.getElementById('total-debit');
+  const totalC = document.getElementById('total-credit');
+  const badge = document.getElementById('balance-badge');
+  const postBtn = document.getElementById('btn-post');
+
+  function fmt(n){ return (n || 0).toLocaleString('en-US'); }
+
+  function recalc(){
+    let d = 0, c = 0;
+    table.querySelectorAll('tbody tr').forEach(tr => {
+      const ins = tr.querySelectorAll('input[name$="-debit"], input[name$="-credit"]');
+      if (ins.length >= 2){
+        d += parseFloat(ins[0].value) || 0;
+        c += parseFloat(ins[1].value) || 0;
+      }
+    });
+    totalD.textContent = fmt(d);
+    totalC.textContent = fmt(c);
+    const balanced = d > 0 && d === c;
+    badge.textContent = balanced ? 'Balanced' : 'Unbalanced';
+    badge.className = 'badge ' + (balanced ? 'text-bg-success' : 'text-bg-secondary');
+    postBtn.disabled = !balanced;
+  }
+
+  table.addEventListener('input', (e) => {
+    const n = e.target.name || '';
+    if (n.endsWith('-debit') || n.endsWith('-credit')) recalc();
+  });
+  recalc();
+})();
+</script>
 {% endblock %}

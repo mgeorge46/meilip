@@ -14,6 +14,7 @@ from django.views.generic import CreateView, DetailView, UpdateView, View
 
 from accounts.permissions import RoleRequiredMixin, role_required
 from core.mixins import PaginatedListView
+from core.utils import export_csv
 
 from .forms import AccountForm, BankAccountForm, JournalEntryForm, JournalEntryLineFormSet
 from .models import Account, BankAccount, JournalEntry, JournalEntryLine
@@ -41,6 +42,20 @@ class AccountListView(RoleRequiredMixin, PaginatedListView):
         if category:
             qs = qs.filter(account_type__category=category)
         return qs
+
+    def get(self, request, *args, **kwargs):
+        if request.GET.get("export") == "csv":
+            columns = [
+                ("Code", "code"),
+                ("Name", "name"),
+                ("Category", lambda a: a.account_type.get_category_display()),
+                ("Normal", lambda a: a.account_type.get_normal_balance_display()),
+                ("System code", "system_code"),
+                ("Postable", "is_postable"),
+                ("Balance (UGX)", lambda a: a.balance()),
+            ]
+            return export_csv(self.get_queryset(), columns, "chart_of_accounts")
+        return super().get(request, *args, **kwargs)
 
 
 class AccountCreateView(RoleRequiredMixin, CreateView):
@@ -135,6 +150,21 @@ class GeneralLedgerView(RoleRequiredMixin, PaginatedListView):
         ctx["filter_to"] = self.request.GET.get("to", "")
         return ctx
 
+    def get(self, request, *args, **kwargs):
+        if request.GET.get("export") == "csv":
+            columns = [
+                ("Date", "entry.entry_date"),
+                ("Reference", "entry.reference"),
+                ("Status", lambda l: l.entry.get_status_display()),
+                ("Account code", "account.code"),
+                ("Account name", "account.name"),
+                ("Description", lambda l: l.description or l.entry.memo),
+                ("Debit", "debit"),
+                ("Credit", "credit"),
+            ]
+            return export_csv(self.get_queryset(), columns, "general_ledger")
+        return super().get(request, *args, **kwargs)
+
 
 # ---------------------------------------------------------------------------
 # Journal Entry — create (formset) + post
@@ -224,6 +254,16 @@ def commission_income_report(request):
     credits = totals["c"] or Decimal("0")
     # Revenue = credit-normal; recognised amount = credits - debits (reversals).
     recognised = credits - debits
+    if request.GET.get("export") == "csv":
+        columns = [
+            ("Date", "entry.entry_date"),
+            ("Reference", "entry.reference"),
+            ("Source", lambda l: l.entry.get_source_display()),
+            ("Description", lambda l: l.description or l.entry.memo),
+            ("Debit", "debit"),
+            ("Credit", "credit"),
+        ]
+        return export_csv(lines, columns, "commission_income")
     return render(
         request,
         "accounting/commission_income_report.html",
@@ -253,7 +293,38 @@ class BankAccountListView(RoleRequiredMixin, PaginatedListView):
     context_object_name = "bankaccounts"
 
     def get_queryset(self):
-        return super().get_queryset().select_related("currency", "ledger_account")
+        qs = super().get_queryset().select_related("currency", "ledger_account")
+        q = self.request.GET.get("q")
+        if q:
+            qs = qs.filter(
+                Q(name__icontains=q)
+                | Q(bank_name__icontains=q)
+                | Q(mobile_provider__icontains=q)
+                | Q(account_number__icontains=q)
+                | Q(mobile_number__icontains=q)
+            )
+        kind = self.request.GET.get("kind")
+        if kind:
+            qs = qs.filter(kind=kind)
+        active = self.request.GET.get("active")
+        if active in ("1", "0"):
+            qs = qs.filter(is_active=(active == "1"))
+        return qs
+
+    def get(self, request, *args, **kwargs):
+        if request.GET.get("export") == "csv":
+            columns = [
+                ("Name", "name"),
+                ("Kind", lambda b: b.get_kind_display()),
+                ("Bank / Provider", lambda b: b.bank_name or b.mobile_provider or ""),
+                ("Number", lambda b: b.account_number or b.mobile_number or ""),
+                ("Currency", "currency.code"),
+                ("Ledger code", "ledger_account.code"),
+                ("Ledger name", "ledger_account.name"),
+                ("Active", "is_active"),
+            ]
+            return export_csv(self.get_queryset(), columns, "bank_accounts")
+        return super().get(request, *args, **kwargs)
 
 
 class BankAccountDetailView(RoleRequiredMixin, DetailView):
@@ -275,6 +346,9 @@ class BankAccountCreateView(RoleRequiredMixin, CreateView):
         _msgs.success(self.request, "Bank account created.")
         return super().form_valid(form)
 
+    def get_success_url(self):
+        return reverse("accounting:bankaccount-list")
+
 
 class BankAccountUpdateView(RoleRequiredMixin, UpdateView):
     required_roles = ("ADMIN", "SUPER_ADMIN", "FINANCE")
@@ -287,6 +361,9 @@ class BankAccountUpdateView(RoleRequiredMixin, UpdateView):
         _msgs.success(self.request, "Bank account updated.")
         return super().form_valid(form)
 
+    def get_success_url(self):
+        return reverse("accounting:bankaccount-list")
+
 
 class BankAccountDeleteView(RoleRequiredMixin, View):
     required_roles = ("ADMIN", "SUPER_ADMIN")
@@ -296,3 +373,82 @@ class BankAccountDeleteView(RoleRequiredMixin, View):
         obj.soft_delete(user=request.user)
         _msgs.success(request, "Bank account deleted.")
         return _redirect("accounting:bankaccount-list")
+
+
+# ---------------------------------------------------------------------------
+# Trial Balance (Phase E follow-up) — per-account posted debits/credits and
+# net balance. Sum of debits must equal sum of credits across the full ledger.
+# ---------------------------------------------------------------------------
+from django.db.models import Sum, Case, When, Value, DecimalField
+
+
+@role_required(*FINANCE_ROLES)
+def trial_balance(request):
+    from decimal import Decimal
+    today = date.today()
+    date_from = request.GET.get("from") or ""
+    date_to = request.GET.get("to") or today.isoformat()
+
+    line_qs = JournalEntryLine.objects.filter(entry__status=JournalEntry.Status.POSTED)
+    if date_from:
+        line_qs = line_qs.filter(entry__entry_date__gte=date_from)
+    if date_to:
+        line_qs = line_qs.filter(entry__entry_date__lte=date_to)
+
+    # Aggregate per account
+    per_account = (
+        line_qs.values("account_id")
+        .annotate(debit=Sum("debit"), credit=Sum("credit"))
+        .order_by("account__code")
+    )
+    # Materialize with account metadata
+    account_map = {
+        a.pk: a for a in Account.objects.select_related("account_type").filter(
+            pk__in=[row["account_id"] for row in per_account]
+        )
+    }
+    rows = []
+    total_debit = Decimal("0")
+    total_credit = Decimal("0")
+    for row in per_account:
+        acct = account_map.get(row["account_id"])
+        if acct is None:
+            continue
+        d = row["debit"] or Decimal("0")
+        c = row["credit"] or Decimal("0")
+        net = d - c  # debit-positive convention
+        # Collapse per normal-balance side
+        if net >= 0:
+            debit_balance, credit_balance = net, Decimal("0")
+        else:
+            debit_balance, credit_balance = Decimal("0"), -net
+        rows.append({
+            "account": acct,
+            "debit": d, "credit": c,
+            "debit_balance": debit_balance,
+            "credit_balance": credit_balance,
+        })
+        total_debit += debit_balance
+        total_credit += credit_balance
+
+    if request.GET.get("export") == "csv":
+        from core.utils import export_csv
+        columns = [
+            ("Code", lambda r: r["account"].code),
+            ("Name", lambda r: r["account"].name),
+            ("Category", lambda r: r["account"].account_type.get_category_display()),
+            ("Debits (period)", "debit"),
+            ("Credits (period)", "credit"),
+            ("Debit balance", "debit_balance"),
+            ("Credit balance", "credit_balance"),
+        ]
+        return export_csv(rows, columns, "trial_balance")
+
+    return render(request, "accounting/trial_balance.html", {
+        "rows": rows,
+        "date_from": date_from,
+        "date_to": date_to,
+        "total_debit": total_debit,
+        "total_credit": total_credit,
+        "is_balanced": total_debit == total_credit,
+    })

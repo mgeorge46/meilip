@@ -33,6 +33,9 @@ PAD_WIDTH = {
     "REF": 5,
     "RCP": 5,
     "JE": 6,
+    "LPO": 5,   # Landlord Payout
+    "SPY": 5,   # Supplier Payment
+    "EXP": 5,   # Expense Claim
 }
 
 

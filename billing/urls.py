@@ -10,6 +10,8 @@ urlpatterns = [
     path("invoices/new/", views.InvoiceCreateView.as_view(), name="invoice-create"),
     path("invoices/<int:pk>/", views.InvoiceDetailView.as_view(), name="invoice-detail"),
     path("invoices/<int:pk>/delete/", views.InvoiceDeleteView.as_view(), name="invoice-delete"),
+    path("invoices/<int:pk>/mark-paid/", views.InvoiceMarkPaidView.as_view(), name="invoice-mark-paid"),
+    path("invoices/<int:pk>/issue/", views.InvoiceIssueView.as_view(), name="invoice-issue"),
     path("tenancies/<int:pk>/pause/", views.InvoicePauseView.as_view(), name="invoice-pause"),
 
     # Payments
@@ -32,7 +34,14 @@ urlpatterns = [
          views.ApprovalActionView.as_view(), name="approval-action"),
 
     # Receipts
+    path("receipts/", views.ReceiptListView.as_view(), name="receipt-list"),
     path("receipts/<int:pk>/", views.ReceiptDetailView.as_view(), name="receipt-detail"),
+
+    # Invoice schedules (read-only overview)
+    path("invoice-schedules/", views.InvoiceScheduleListView.as_view(), name="invoice-schedule-list"),
+
+    # Landlord statements picker
+    path("landlord-statements/", views.LandlordStatementIndexView.as_view(), name="landlord-statement-index"),
 
     # Exit workflow (SPEC §20.5)
     path("tenancies/<int:pk>/exit/", views.ExitWorkflowView.as_view(), name="exit-workflow"),
@@ -47,4 +56,19 @@ urlpatterns = [
     path("reports/revenue/", reports.RevenueSummaryReport.as_view(), name="report-revenue"),
     path("tenancies/<int:pk>/statement/", views.TenantStatementView.as_view(), name="tenant-statement"),
     path("landlords/<int:pk>/statement/", views.LandlordStatementView.as_view(), name="landlord-statement"),
+
+    # Landlord payouts (Phase E)
+    path("landlord-payouts/", views.LandlordPayoutListView.as_view(), name="landlord-payout-list"),
+    path("landlord-payouts/new/", views.LandlordPayoutCreateView.as_view(), name="landlord-payout-create"),
+    path("landlord-payouts/<int:pk>/", views.LandlordPayoutDetailView.as_view(), name="landlord-payout-detail"),
+
+    # Supplier payments (Phase E)
+    path("supplier-payments/", views.SupplierPaymentListView.as_view(), name="supplier-payment-list"),
+    path("supplier-payments/new/", views.SupplierPaymentCreateView.as_view(), name="supplier-payment-create"),
+    path("supplier-payments/<int:pk>/", views.SupplierPaymentDetailView.as_view(), name="supplier-payment-detail"),
+
+    # Expense claims (Phase E.3)
+    path("expense-claims/", views.ExpenseClaimListView.as_view(), name="expense-claim-list"),
+    path("expense-claims/new/", views.ExpenseClaimCreateView.as_view(), name="expense-claim-create"),
+    path("expense-claims/<int:pk>/", views.ExpenseClaimDetailView.as_view(), name="expense-claim-detail"),
 ]

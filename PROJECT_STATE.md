@@ -1,10 +1,150 @@
 # Project State
 
+## Phase F.2 (2026-04-25)
+**Collections targets + tiered bonuses + entity audit + UX fixes.**
+
+- New models in `core/models.py`:
+  - `CollectionsTarget(employee, month, target_amount, notes)` — month is normalised to day 1; unique per employee+month.
+  - `CollectionsBonusBracket(label, min_amount, max_amount, rate_percent, is_active)` — admin-configurable tiers; first matching active bracket whose [min, max] range contains the collected amount wins. `max_amount=null` means "and above".
+- Service module `core/collections.py`:
+  - `compute_employee_month(employee, month, *, house=None, estate=None)` — sums `PaymentAllocation.amount` where `applied_at` ∈ [month, month+1), `is_advance_hold=False`, parent payment is APPROVED/AUTO_APPROVED, and the allocated invoice's `tenant_house.house.collections_person == employee`. Optional house/estate scope.
+  - `compute_bonus(amount)` — picks first active bracket containing amount, returns `(bracket, bonus_amount)`.
+  - `build_performance_rows(month, employees=None, house=None, estate=None)` — returns dataclass rows with target / collected / attainment_pct / bracket / bonus.
+- CRUD pages: `/core/collections/targets/`, `/core/collections/brackets/`. Permissions: ADMIN / SUPER_ADMIN / FINANCE.
+- Report: `/core/reports/collections-performance/` — month picker + employee + house + estate filters, summary cards (Total target / collected / bonus payable), per-employee table with attainment progress bar, CSV export, active-schedule reminder.
+- Sidebar links added under Reports.
+- Seed updates: 3 demo bonus brackets (2% / 3.5% / 5%), monthly targets for collections employees over the last 3 months, demo `House.collections_person` populated.
+
+### UX fixes shipped en route
+- **White-on-white status badges** — added CSS for `.badge.status-{draft,issued,partially_paid,paid,overdue,voided,cancelled,pending,approved,auto_approved,rejected,sent_back}` so status text is readable on every list.
+- **Approvals queue "Approve does nothing"** — root cause was self-approval block. Seed re-pointed PENDING records to a non-superuser maker (`demo-maker@example.com`), and seed_demo now uses non-super maker by default.
+- **Invoice list, Payment list, Expense Claim list** — search bar, status / method / category filters, date filters, page-size selector (50/100/150/200, default 100), CSV export across all three.
+- **Invoice detail** — top stat strip (Status / Total / Paid / Outstanding) with colour coding; Payment Allocations table now links to each Payment detail with method + status badges.
+- **Detail-page None guards** — `LandlordPayout`, `SupplierPayment`, `ExpenseClaim` detail templates now `{% if obj.maker %}…{% endif %}` instead of `|default:obj.maker.email|default:'—'` (which crashed when maker/checker was null).
+- **BankAccount Create/Update** — added missing `get_success_url` (was throwing ImproperlyConfigured on save).
+- **Receipt list** — guarded `r.payment.tenant` / `r.refund.tenant` chains for refund-only receipts.
+
+### Entity connectivity audit (run against seeded data)
+
+| # | Check | Count | Status |
+|---|---|---:|---|
+| 1 | Tenant ↔ Payment FK | — | ✅ OK |
+| 2 | Landlord ↔ Payout FK | — | ✅ OK |
+| 3 | Supplier ↔ SupplierPayment FK | — | ✅ OK |
+| 4 | Employee ↔ ExpenseClaim FK | — | ✅ OK |
+| 5 | `get_effective_setting(house, 'collections_person')` | — | ✅ OK (resolver in use) |
+| 6 | Receipt orphans (no payment AND no refund) | **0** | ✅ |
+| 7 | NotificationDelivery orphans (no tenant AND no landlord) | **0** | ✅ |
+| 8 | Active invoices without `source_journal` | **26** | 🟡 By design for seed; real billing flow via `Invoice.transition_to(ISSUED)` posts GL. Live data is unaffected. |
+| 9 | PaymentAllocation orphans (no invoice & not advance-hold) | **0** | ✅ |
+| 10 | Houses without `collections_person` at any level | **1 / 6** | 🟡 Unassigned-data gap |
+| 11 | Houses without `account_manager` at any level | **5 / 6** | 🟡 Significant unassigned-data gap |
+| 12 | Island employees (not referenced anywhere as stakeholder) | **0** | ✅ |
+| 13 | Suppliers with zero payments | 1 / 4 | FYI |
+| 14 | Stale CollectionsTargets (employee no longer collections_person) | 0 | ✅ |
+
+**Action items from audit:**
+- (#8) **Invoices without source_journal** — the seed creates `Invoice` rows directly with `status=ISSUED` to populate the dashboard chart, bypassing `Invoice.transition_to(ISSUED)` which posts the JE. This is a demo-data shortcut, not a production-flow bug. Future improvement: add a `--with-gl` flag to seed_demo to optionally route invoices through the proper transition.
+- (#10, #11) **Unassigned houses** — most seeded houses lack an `account_manager`. Either bulk-assign in seed_demo or add a "Houses missing assignment" report. Tracked as tech debt.
+
 ## Current Phase
-Phase 8 complete (2026-04-22) — audit, dashboards, outbound notifications, production hardening shipped. **151/151 tests passing**. Ready for production deploy.
+Phase E.3 (bug fixes + one-tenancy-per-house constraint + ExpenseClaim feature) shipped 2026-04-24. Phase E.2 (sidebar wiring + Receipts / Invoice Schedules / Trial Balance / Landlord Statement index + GL posting for payouts) shipped 2026-04-24. Phase E.1 (Landlord/Supplier payment models + detail tabs) shipped 2026-04-23. **151/151 prior tests still passing** (no regressions). New Phase E functionality not yet covered by unit tests — tracked as tech debt.
 
 ## Last Completed
-Phase 8 (2026-04-22):
+Phase E.3 — bug fixes, house-occupancy constraint, ExpenseClaim (2026-04-24):
+
+### Bugs fixed
+- **`LandlordStatementView`** — `TypeError: Cannot combine queries on two different base models`. Line 508 OR-ed a House queryset with an Estate `values_list`; rewrote with a single `Q()` across House (via direct landlord FK or via estate.landlord).
+- **`ReceiptListView`** — `FieldError: Invalid field name(s) given in select_related: 'tenant'`. `Receipt` has no direct tenant FK; tenant hangs off `payment.tenant` or `refund.tenant`. Fixed `select_related`, search, CSV, and `receipt_list.html` template.
+- **Cosmetic** — `landlord_statement_index.html` referenced `l.houses_count` (non-existent); replaced with `l.houses.count`.
+
+### One active tenancy per house (SPEC constraint)
+- Added `UniqueConstraint(fields=['house'], condition=Q(status='ACTIVE', is_deleted=False), name='uniq_active_tenancy_per_house')` on `core.TenantHouse` (migration `core.0008`). DB-verified: trying to activate a 2nd tenant on an occupied house raises `IntegrityError` with the constraint name.
+- `TenantHouse.clean()` mirrors the constraint with a readable `ValidationError` so forms surface a human error before the DB does.
+- `TenantHouseActivateView.post()` now also pre-checks and returns a friendly `messages.error` + redirect instead of a 500 when the house is already occupied.
+- A tenant can still have multiple houses (multiple ACTIVE rows with distinct `house`). Constraint is PARTIAL on status=ACTIVE, so EXITED / PROSPECT rows don't collide.
+
+### ExpenseClaim feature — employees submit expense claims with receipt photos
+- **Model** `billing.ExpenseClaim` (EXP-prefix, `MakerCheckerMixin` with `allow_trusted_bypass = False` — expenses always need a checker). Fields: claimant (Employee FK), category (enum: MAINTENANCE_REPAIRS / UTILITIES / TRANSPORT / OFFICE_SUPPLIES / COMMS / LEGAL_PROFESSIONAL / OTHER), description, related_house (optional), amount (UGX), incurred_at, **receipt_photo** (`ImageField`, uploads to `MEDIA_ROOT/expense_receipts/<claimant_id>/<EXP-number>.<ext>`), reimbursement_bank (BankAccount FK), notes, source_journal (nullable). Migration `billing.0005`.
+- **Forms** `ExpenseClaimForm` with Bootstrap widgets + `accept="image/*,application/pdf"` on the file input.
+- **Views** `ExpenseClaimListView` (search by number / description / claimant / amount + category + status filter + CSV export; **non-finance users only see their own claims**), `ExpenseClaimCreateView` (defaults `claimant` to the requesting user's Employee profile; stores `maker` + submits as PENDING), `ExpenseClaimDetailView` (renders the uploaded photo inline — or a "Open PDF" button for PDF attachments).
+- **URLs** `/billing/expense-claims/` list/new/<pk>. Added to sidebar Billing submenu. Added as a tab on the Employee detail page (shows that employee's own claims with status, receipt link, amount).
+- **Approvals queue** — `ApprovalsQueueView` now has 8 tabs; added Landlord Payouts, Supplier Payments, **Expense Claims**. The queue uses existing `ApprovalActionView` / `MakerCheckerMixin.approve()` flow. Self-approval blocked by the mixin (maker ≠ checker).
+- **GL posting signal** — `billing/signals_gl.py::post_expense_claim_journal` fires on `post_save` when `approval_status in (APPROVED, AUTO_APPROVED)` and `source_journal` is still null:
+  - Category → system_code via `ExpenseClaim.CATEGORY_TO_SYSTEM_CODE` mapping; falls back to `MAINTENANCE_REPAIRS` if the category-specific account isn't seeded.
+  - Posts: `Dr <expense account>` / `Cr <reimbursement_bank.ledger_account>`.
+  - Idempotent.
+  - Verified: approved a test claim for 35,000 → JE posted `Dr 5100 M&R / Cr 1100 Cash on Hand`, claim.source_journal_id set.
+
+### Dangling-issue scan (no action needed, documented for completeness)
+- `coming-soon` remaining in sidebar/header: only "Admin Settings" — SPEC item not yet built, OK to leave stubbed.
+- All `{% url %}` references in sidebar/header resolve to registered URL names.
+- `billing/signals_gl.py` only imported in `billing/apps.py::BillingConfig.ready()` — clean wiring.
+
+### Tech debt opened this phase
+- Category-specific expense accounts (UTILITIES_EXPENSE, TRANSPORT_EXPENSE, OFFICE_SUPPLIES_EXPENSE, COMMS_EXPENSE, LEGAL_EXPENSE, OTHER_OPERATING_EXPENSE) are NOT yet seeded in the COA. Until they are, every approved ExpenseClaim posts to `5100 Maintenance & Repairs` via the fallback. Follow-up: add a `seed_expense_accounts` data migration.
+- No unit tests yet for ExpenseClaim list/create/signal/search — tracked as tech debt.
+- Seed demo command does NOT yet create sample expense claims. Low priority.
+
+Phase E.2 — sidebar wiring, missing list pages, GL posting (2026-04-24):
+
+## Last Completed
+Phase E.2 — sidebar wiring, missing list pages, GL posting (2026-04-24):
+- **Sidebar fix** — Billing menu was sending Invoices / Payments / Receipts / Invoice Schedules / Trial Balance / Landlord Statements to the `coming-soon` stub even though views existed. All six now point to real URLs. Added Landlord Payouts, Supplier Payments, Approvals Queue, and Ad-hoc Charges to the Billing submenu.
+- **New list pages**
+  - `ReceiptListView` (`/billing/receipts/`) — search by number / tenant / payment ref, kind filter, CSV export.
+  - `InvoiceScheduleListView` (`/billing/invoice-schedules/`) — read-only overview of tenancies + `invoice_generation_status` (ACTIVE / PAUSED / STOPPED), search by tenant/house/estate, in-row pause/resume button, CSV export.
+  - `LandlordStatementIndexView` (`/billing/landlord-statements/`) — picker; each row deep-links to the existing `billing:landlord-statement` per-landlord page.
+  - `trial_balance` (`/accounting/reports/trial-balance/`) — per-account posted debits & credits, net debit/credit balance per row, period filter (from / to), Balanced/Unbalanced badge, CSV export. Ledger math confirmed: 5,220,000 debits = 5,220,000 credits across 11 posted journals with demo data.
+- **GL posting for LandlordPayout + SupplierPayment** — `billing/signals_gl.py` wires `post_save` on both models. When a row becomes APPROVED/AUTO_APPROVED and has no `source_journal` yet, the signal creates a balanced JournalEntry and posts it:
+  - LandlordPayout → `Dr LANDLORD_PAYABLE (2100) / Cr <bank.ledger_account>`
+  - SupplierPayment → `Dr MAINTENANCE_REPAIRS (5100) / Cr <bank.ledger_account>`
+  - Idempotent: no-ops if `source_journal` already set. JE reference allocated via existing `NumberSequence`.
+  - Wired in `billing/apps.py ready()`.
+- **Backfill** — re-saved all existing approved LandlordPayout / SupplierPayment rows to post their journals; 6 new journal entries posted cleanly.
+
+### Bug squashed en route
+- `NumberSequence` for `JE-202604-*` was out of sync with actual `JournalEntry.reference` values — caused `IntegrityError: duplicate key` on first signal firing. Fixed with a one-shot sync that walks existing `reference` strings and bumps `next_value` to `max(existing) + 1` per (prefix, year, month). Consider a management command `sync_number_sequences` as follow-up tech debt.
+
+Phase E.1 — UI polish + disbursement models (2026-04-23):
+
+## Last Completed
+Phase E — UI polish + disbursement models (2026-04-23):
+- **New models** — `billing.LandlordPayout` and `billing.SupplierPayment` (both `MakerCheckerMixin + CoreBaseModel`, UGX amount, bank_account FK, Method choices BANK/MOBILE_MONEY/CHEQUE/CASH/OTHER, reference_number, notes, sequential numbering via `LPO` / `SPY` prefixes, `source_journal` nullable FK for future GL posting). SupplierPayment adds `service_description`, `invoice_reference`, `related_house`. Migration `billing/0004`.
+- **Admin** — `LandlordPayoutAdmin`, `SupplierPaymentAdmin` with search + status filter, approval-trail fields read-only.
+- **CRUD** — `billing/views.py` adds List/Create/Detail for both. List views support search (number / reference / amount / supplier or landlord name / service) + status filter + `?export=csv`. Auto-approval via `try_trusted_autoapprove()` on create (trusted maker).
+- **URLs** — `/billing/landlord-payouts/` and `/billing/supplier-payments/` (list / new / <pk>).
+- **Templates** — 6 new templates under `templates/billing/`: `landlord_payout_{list,form,detail}.html`, `supplier_payment_{list,form,detail}.html`; all Bootstrap 5, data-table-wrap pattern, approval-trail card.
+- **Detail-page payment tabs**
+  - Tenant → added **summary stats row** (active tenancies, total paid, invoices, open invoices) + Payments tab now has search (receipt # / reference / exact amount) and pagination (50/100/150/250) + Messages tab pagination; active tab persists via `?tab=` query param.
+  - Landlord → rebuilt with tabs Overview / Estates / Houses / **Payouts (searchable + paginated)** / Messages; "Record payout" button deep-links to `LandlordPayoutCreate?landlord=<id>`.
+  - Supplier → rebuilt from a bare KV page into full tabbed detail with **stat summary row** (total paid, payment count, supplier type) + Payments tab (search across number / service / invoice ref / external ref / amount; 50/100/150/250 per page); "Record payment" deep-link.
+- **Accounting tables polish (Phase B recap, shipped earlier)** — Chart of Accounts, General Ledger, Commission Income, Bank Accounts all have filter bars, sticky-header data-tables, and `?export=csv`. Journal Entry form has Bootstrap widgets, grouped header/lines cards, live Balanced/Unbalanced badge, and Save-&-post is disabled until debits = credits.
+- **Reusable pieces** — `core/utils.export_csv(rows, columns, filename)`, `templates/core/_data_toolbar.html`, `.data-table-wrap` / `.data-toolbar` / `.detail-tabs` CSS classes.
+- **Seed command** — `py manage.py seed_demo` (idempotent; `--reset` flag) creates 2 landlords, 2 estates, 4 houses, 2 tenants, tenancies, 6 invoices, 4 payments, 3 suppliers, 4 landlord payouts, 5 supplier payments, 5 notification deliveries. All demo rows are prefixed `Demo` for safe cleanup.
+
+## Explicitly deferred (still not built — tagged for a later phase)
+Each one is its own phase of work, not cosmetic:
+- **Payroll-run workflow + GL posting** (Employee fields exist; runs deferred — needs SalariesExpense / AllowancesExpense / SalariesPayable / PAYEPayable routing, maker-checker, period concept).
+- **Balance Sheet report** (Commission Report + Trial Balance shipped; Balance Sheet still pending).
+- **Multi-tax stacking** (single tax_type FK today).
+- **USD-billed transactions / full multi-currency ledger** (UGX-only math).
+- **AuditLog CRUD / approve / void / refund capture** (auth events auto-captured; CRUD+approval actions still need a signal/decorator pass).
+- **Notification bell unread template wiring** (backend + Celery shipped; 5-min template wiring deferred).
+- **Password-reset email via Celery `enqueue_notification`** (dev inline path still used).
+- **Employee auto-provisioning on User insert** + **employee self-provisioning** (both require User-model changes).
+- **Journal Entry void / draft hard-delete** (rare admin action).
+- **NotificationDelivery JSON functional index** for idempotency lookups (add once volume warrants).
+- **Supplier account category routing** — SupplierPayment currently always posts to `MAINTENANCE_REPAIRS`. Mapping supplier kind / category → different expense accounts (utilities, admin, supplies) is a future refinement.
+- **Number sequence resync management command** (`sync_number_sequences`) to prevent the NumberSequence-vs-reference drift issue we hit this phase.
+
+## Tech debt opened this phase
+- No unit tests yet for LandlordPayout / SupplierPayment list-search, create+auto-approval, CSV export — should add before production use.
+- Tenant/Landlord/Supplier detail views compose tabs in-view (paginated context + search). If a 5th tab lands, extract a `TabPayload` dataclass helper.
+
+---
+
+## Phase 8 (2026-04-22):
 - **Interactive KPI dashboard** — `dashboard/services.py` compiles live metrics from the ledger: Outstanding AR, Billed/Collected this month, Collection Rate %, Occupancy %, Active tenants, Overdue count+total; AR ageing buckets (Not yet due / 0-30 / 31-60 / 61-90 / 90+); 12-month billed-vs-collected trend; notification health (7-day success rate). `templates/dashboard/home.html` renders all of it with inline SVG bar charts (pure JS, no framework) and a conic-gradient ring widget; Refresh button fetches `/kpi/` for live updates without a full page reload. CSS in `base.css` adds `.kpi-grid`, `.kpi-card`, `.tone-*`, `.dashboard-grid`, `.ring`, `.chart-legend` etc. — matches existing design system.
 - **Roadmap copy** — `dashboard/views.coming_soon` now passes a ROADMAP dict (Invoices, Payments, Receipts, Invoice Schedules, Trial Balance, Landlord Statements, Admin Settings) with descriptions; template renders "This feature is on the roadmap and will be available in an upcoming release." plus the full roadmap list highlighting the current feature.
 - **Outbound notifications API** — `POST /api/v1/notifications/` (rate-limited 120/m per API key) accepts `{template, tenant_id|landlord_id|recipient, channel?, context, idempotency_key?}`, resolves channel/recipient from party preference, returns delivery row; `GET /api/v1/notifications/{id}/` polls delivery status (attempt_count, provider_message_id, sent_at, error_detail). Idempotency via `NotificationDelivery.context__idempotency_key`. Swagger docs auto-updated.

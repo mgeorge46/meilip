@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Collections performance · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Collections Performance</h1>
+    <p class="muted mb-0">Per-employee monthly collected vs target, with bonus computed from the active bracket schedule.</p>
+  </div>
+  <div class="actions d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'core:collections-target-list' %}"><i class="bi bi-bullseye me-1"></i>Targets</a>
+    <a class="btn btn-outline-secondary" href="{% url 'core:collections-bracket-list' %}"><i class="bi bi-sliders me-1"></i>Brackets</a>
+  </div>
+</section>
+
+<div class="card filter-bar mb-3">
+  <form method="get" class="filter-grid">
+    <div>
+      <label>Month</label>
+      <input type="date" name="month" class="form-control" value="{{ month|date:'Y-m-d' }}">
+    </div>
+    <div>
+      <label>Employee</label>
+      <select name="employee" class="form-select">
+        <option value="">All collections staff</option>
+        {% for e in employees %}
+          <option value="{{ e.pk }}" {% if filter_employee == e.pk|stringformat:'s' %}selected{% endif %}>{{ e.full_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>House</label>
+      <select name="house" class="form-select">
+        <option value="">All houses</option>
+        {% for h in houses %}
+          <option value="{{ h.pk }}" {% if filter_house == h.pk|stringformat:'s' %}selected{% endif %}>{{ h.estate.name }} · {{ h }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Estate</label>
+      <select name="estate" class="form-select">
+        <option value="">All estates</option>
+        {% for e in estates %}
+          <option value="{{ e.pk }}" {% if filter_estate == e.pk|stringformat:'s' %}selected{% endif %}>{{ e.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-outline-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
+      <a href="{% url 'core:report-collections-performance' %}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </form>
+</div>
+
+{# ---- summary cards ---- #}
+<div class="row g-3 mb-3">
+  <div class="col-md-3 col-6">
+    <div class="card p-3">
+      <div class="text-uppercase text-muted small" style="letter-spacing:.05em;">Month</div>
+      <div class="h4 mb-0">{{ month|date:"M Y" }}</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="card p-3">
+      <div class="text-uppercase text-muted small" style="letter-spacing:.05em;">Total target</div>
+      <div class="h4 num mb-0">UGX {{ total_target }}</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="card p-3">
+      <div class="text-uppercase text-muted small" style="letter-spacing:.05em;">Total collected</div>
+      <div class="h4 num mb-0">UGX {{ total_collected }}</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="card p-3">
+      <div class="text-uppercase text-muted small" style="letter-spacing:.05em;">Total bonus payable</div>
+      <div class="h4 num mb-0 text-success">UGX {{ total_bonus }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="data-toolbar">
+  <div class="toolbar-meta"><strong>{{ rows|length }}</strong> employee row{{ rows|length|pluralize }}</div>
+  <div class="toolbar-actions">
+    <a class="btn btn-sm btn-outline-secondary" href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}export=csv"><i class="bi bi-download me-1"></i>Export CSV</a>
+  </div>
+</div>
+
+<div class="data-table-wrap">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Employee</th><th class="text-end">Target (UGX)</th>
+        <th class="text-end">Collected (UGX)</th>
+        <th>Attainment</th>
+        <th>Bonus tier</th><th class="text-end">Rate</th>
+        <th class="text-end">Bonus (UGX)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><a href="{% url 'core:employee-detail' r.employee.pk %}" class="fw-semibold">{{ r.employee.full_name }}</a></td>
+        <td class="text-end num">{{ r.target }}</td>
+        <td class="text-end num">{{ r.collected }}</td>
+        <td>
+          {% if r.attainment_pct is None %}
+            <span class="text-muted">no target</span>
+          {% else %}
+            <div class="d-flex align-items-center gap-2">
+              <div class="progress" style="height:8px;width:120px;">
+                <div class="progress-bar
+                  {% if r.attainment_pct >= 100 %}bg-success
+                  {% elif r.attainment_pct >= 75 %}bg-info
+                  {% elif r.attainment_pct >= 50 %}bg-warning
+                  {% else %}bg-danger{% endif %}"
+                  style="width: {{ r.attainment_pct|floatformat:0 }}%; max-width:100%;"></div>
+              </div>
+              <span class="small num">{{ r.attainment_pct|floatformat:1 }}%</span>
+            </div>
+          {% endif %}
+        </td>
+        <td>{% if r.bracket %}<span class="badge text-bg-info">{{ r.bracket.label }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td class="text-end num">{% if r.bracket %}{{ r.bracket.rate_percent }}%{% else %}—{% endif %}</td>
+        <td class="text-end num fw-semibold">{{ r.bonus }}</td>
+      </tr>
+      {% empty %}
+      <tr class="empty-row"><td colspan="7">No collections data for this filter / month. Set targets and assign collections persons to houses.</td></tr>
+      {% endfor %}
+    </tbody>
+    {% if rows %}
+    <tfoot>
+      <tr>
+        <td class="text-end">Totals</td>
+        <td class="text-end num">{{ total_target }}</td>
+        <td class="text-end num">{{ total_collected }}</td>
+        <td></td><td></td><td></td>
+        <td class="text-end num fw-bold">{{ total_bonus }}</td>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+</div>
+
+{% if active_brackets %}
+<div class="card p-3 mt-3">
+  <h2 class="h6 text-uppercase text-muted mb-2" style="letter-spacing:.05em;">Active bracket schedule</h2>
+  <div class="d-flex flex-wrap gap-2">
+    {% for b in active_brackets %}
+      <span class="badge text-bg-light p-2">
+        {{ b.label }} · {{ b.min_amount }}–{{ b.max_amount|default:"∞" }} → <strong>{{ b.rate_percent }}%</strong>
+      </span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,25 @@
+{% comment %}
+Reusable toolbar shown above list tables.
+
+Context:
+  total_count     — optional; int shown as "N results"
+  export_label    — optional label override (default "Export CSV")
+  extra_actions   — optional raw HTML block included via {% include %} with_extra (rare)
+
+Emits a "Export CSV" link that re-uses the current querystring plus &export=csv.
+The view must handle ?export=csv using core.utils.export_csv.
+{% endcomment %}
+<div class="data-toolbar">
+  <div class="toolbar-meta">
+    {% if total_count is not None %}
+      <strong>{{ total_count }}</strong> result{{ total_count|pluralize }}
+    {% endif %}
+  </div>
+  <div class="toolbar-actions">
+    {% block toolbar_extra %}{% endblock %}
+    <a class="btn btn-sm btn-outline-secondary"
+       href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}export=csv">
+      <i class="bi bi-download me-1"></i>{{ export_label|default:"Export CSV" }}
+    </a>
+  </div>
+</div>

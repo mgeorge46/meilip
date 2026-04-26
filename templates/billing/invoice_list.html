@@ -1,42 +1,80 @@
 {% extends "base.html" %}
 {% block title %}Invoices · Meili Property{% endblock %}
 {% block content %}
-<section class="page-header between">
-  <div><h1>Invoices</h1></div>
-  <div><a class="btn primary" href="{% url 'billing:invoice-create' %}">+ Manual Invoice</a></div>
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Invoices</h1>
+    <p class="muted mb-0">All invoices issued to tenants.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="{% url 'billing:invoice-create' %}"><i class="bi bi-plus-lg me-1"></i>Manual invoice</a>
+  </div>
 </section>
 
-<form method="get" class="filter-bar">
-  <input type="search" name="q" value="{{ q }}" placeholder="Search number / tenant">
-  <select name="status">
-    <option value="">All statuses</option>
-    {% for code, label in statuses %}
-      <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
-    {% endfor %}
-  </select>
-  <button type="submit" class="btn">Filter</button>
-</form>
+<div class="card filter-bar mb-3">
+  <form method="get" class="filter-grid">
+    <div style="grid-column: span 2;">
+      <label>Search</label>
+      <input type="search" name="q" value="{{ q }}" class="form-control"
+             placeholder="Number, tenant, house, or estate">
+    </div>
+    <div>
+      <label>Status</label>
+      <select name="status" class="form-select">
+        <option value="">All statuses</option>
+        {% for code, label in statuses %}
+          <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Issued from</label>
+      <input type="date" name="from" class="form-control" value="{{ filter_from }}">
+    </div>
+    <div>
+      <label>Issued to</label>
+      <input type="date" name="to" class="form-control" value="{{ filter_to }}">
+    </div>
+    <div>
+      <label>Page size</label>
+      <select name="page_size" class="form-select" onchange="this.form.submit()">
+        {% for s in page_size_options %}
+          <option value="{{ s }}" {% if s == current_page_size %}selected{% endif %}>{{ s }}/page</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-outline-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
+      <a href="{% url 'billing:invoice-list' %}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </form>
+</div>
 
-<div class="card">
-  <table class="data">
-    <thead><tr>
-      <th>Number</th><th>Tenant</th><th>House</th><th>Period</th>
-      <th class="num">Total</th><th class="num">Outstanding</th><th>Status</th><th>Due</th>
-    </tr></thead>
+{% include "core/_data_toolbar.html" with total_count=paginator.count %}
+
+<div class="data-table-wrap">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Number</th><th>Tenant</th><th>House</th><th>Period</th>
+        <th class="text-end">Total (UGX)</th><th class="text-end">Outstanding</th>
+        <th>Status</th><th>Due</th>
+      </tr>
+    </thead>
     <tbody>
       {% for inv in invoices %}
         <tr>
-          <td><a href="{% url 'billing:invoice-detail' inv.pk %}">{{ inv.number|default:"(draft)" }}</a></td>
+          <td><a href="{% url 'billing:invoice-detail' inv.pk %}" class="fw-semibold"><code>{{ inv.number|default:"(draft)" }}</code></a></td>
           <td>{{ inv.tenant_house.tenant.full_name }}</td>
           <td>{{ inv.tenant_house.house }}</td>
-          <td>{{ inv.period_from }} → {{ inv.period_to }}</td>
-          <td class="num">{{ inv.total }}</td>
-          <td class="num">{{ inv.outstanding }}</td>
+          <td class="small text-muted">{{ inv.period_from|date:"M Y" }}</td>
+          <td class="text-end num fw-semibold">{{ inv.total }}</td>
+          <td class="text-end num">{{ inv.outstanding }}</td>
           <td><span class="badge status-{{ inv.status|lower }}">{{ inv.get_status_display }}</span></td>
-          <td>{{ inv.due_date }}</td>
+          <td class="small">{{ inv.due_date|date:"Y-m-d" }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="8" class="muted">No invoices yet.</td></tr>
+        <tr class="empty-row"><td colspan="8">No invoices match your filters.</td></tr>
       {% endfor %}
     </tbody>
   </table>

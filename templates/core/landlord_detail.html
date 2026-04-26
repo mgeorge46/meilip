@@ -3,45 +3,274 @@
 {% block content %}
 <section class="page-header between">
   <div>
-    <h1>{{ landlord.full_name }}</h1>
-    <p class="muted">{% if landlord.is_meili_owned %}Meili-owned{% else %}Managed{% endif %} · {{ landlord.get_status_display }}</p>
+    <h1 class="h3 mb-1">{{ landlord.full_name }}</h1>
+    <p class="muted mb-0">
+      {% if landlord.is_meili_owned %}
+        <span class="badge text-bg-primary">Meili-owned</span>
+      {% else %}
+        <span class="badge text-bg-info">Managed</span>
+      {% endif %}
+      · {{ landlord.get_status_display }}
+    </p>
   </div>
-  <div>
-    <a class="btn ghost" href="{% url 'core:landlord-list' %}">Back</a>
-    <a class="btn primary" href="{% url 'core:landlord-update' landlord.pk %}">Edit</a>
+  <div class="actions d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'core:landlord-list' %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    <a class="btn btn-outline-primary" href="{% url 'billing:landlord-payout-create' %}?landlord={{ landlord.pk }}"><i class="bi bi-cash-coin me-1"></i>Record payout</a>
+    <a class="btn btn-primary" href="{% url 'core:landlord-update' landlord.pk %}"><i class="bi bi-pencil me-1"></i>Edit</a>
   </div>
 </section>
 
-<div class="card">
-  <dl class="kv">
-    <dt>Phone</dt><dd>{{ landlord.phone|default:"—" }}</dd>
-    <dt>Email</dt><dd>{{ landlord.email|default:"—" }}</dd>
-    <dt>ID number</dt><dd>{{ landlord.id_number|default:"—" }}</dd>
-    <dt>Bank</dt><dd>{{ landlord.bank_name|default:"—" }} · {{ landlord.bank_account_number|default:"—" }}</dd>
-    <dt>Branch</dt><dd>{{ landlord.bank_branch|default:"—" }}</dd>
-    <dt>Notes</dt><dd>{{ landlord.notes|default:"—" }}</dd>
-  </dl>
+<ul class="nav nav-tabs detail-tabs" role="tablist" id="landlord-tabs">
+  <li class="nav-item"><button class="nav-link {% if active_tab == 'overview' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-overview" data-tab="overview" type="button">Overview</button></li>
+  <li class="nav-item"><button class="nav-link {% if active_tab == 'estates' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-estates" data-tab="estates" type="button">Estates <span class="badge text-bg-light ms-1">{{ estates|length }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if active_tab == 'houses' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-houses" data-tab="houses" type="button">Houses <span class="badge text-bg-light ms-1">{{ houses|length }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if active_tab == 'payouts' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-payouts" data-tab="payouts" type="button">Payouts <span class="badge text-bg-light ms-1">{{ payouts_total }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if active_tab == 'messages' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-messages" data-tab="messages" type="button">Messages <span class="badge text-bg-light ms-1">{{ notifications_total }}</span></button></li>
+</ul>
+
+<div class="tab-content">
+  {# ---------- Overview ---------- #}
+  <div class="tab-pane fade {% if active_tab == 'overview' %}show active{% endif %}" id="tab-overview">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="card p-3">
+          <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Contact</h2>
+          <dl class="kv mb-0">
+            <dt>Phone</dt><dd>{{ landlord.phone|default:"—" }}</dd>
+            <dt>Email</dt><dd>{{ landlord.email|default:"—" }}</dd>
+            <dt>ID number</dt><dd>{{ landlord.id_number|default:"—" }}</dd>
+          </dl>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card p-3">
+          <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Banking</h2>
+          <dl class="kv mb-0">
+            <dt>Bank</dt><dd>{{ landlord.bank_name|default:"—" }}</dd>
+            <dt>Account #</dt><dd><code>{{ landlord.bank_account_number|default:"—" }}</code></dd>
+            <dt>Branch</dt><dd>{{ landlord.bank_branch|default:"—" }}</dd>
+          </dl>
+        </div>
+      </div>
+      {% if landlord.notes %}
+      <div class="col-12">
+        <div class="card p-3">
+          <h2 class="h6 text-uppercase text-muted mb-2" style="letter-spacing:.05em;">Notes</h2>
+          <p class="mb-0">{{ landlord.notes|linebreaksbr }}</p>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <form method="post" action="{% url 'core:landlord-delete' landlord.pk %}" class="danger-zone mt-4"
+          onsubmit="return confirm('Delete this landlord?');">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash me-1"></i>Delete landlord</button>
+    </form>
+  </div>
+
+  {# ---------- Estates ---------- #}
+  <div class="tab-pane fade {% if active_tab == 'estates' %}show active{% endif %}" id="tab-estates">
+    <div class="data-table-wrap">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr><th>Name</th><th>Location</th><th class="text-end">Houses</th></tr>
+        </thead>
+        <tbody>
+          {% for e in estates %}
+          <tr>
+            <td><a href="{% url 'core:estate-detail' e.pk %}" class="fw-semibold">{{ e.name }}</a></td>
+            <td>{{ e.location|default:"—" }}</td>
+            <td class="text-end num">{{ e.houses.count }}</td>
+          </tr>
+          {% empty %}
+          <tr class="empty-row"><td colspan="3">No estates.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# ---------- Houses ---------- #}
+  <div class="tab-pane fade {% if active_tab == 'houses' %}show active{% endif %}" id="tab-houses">
+    <div class="data-table-wrap">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr><th>Estate</th><th>House</th><th>Occupancy</th><th class="text-end">Rent (UGX)</th></tr>
+        </thead>
+        <tbody>
+          {% for h in houses %}
+          <tr>
+            <td>{{ h.estate.name }}</td>
+            <td><a href="{% url 'core:house-detail' h.pk %}" class="fw-semibold">{{ h.house_number }}{% if h.name %} — {{ h.name }}{% endif %}</a></td>
+            <td><span class="badge text-bg-light">{{ h.get_occupancy_status_display }}</span></td>
+            <td class="text-end num">{{ h.periodic_rent|default:"—" }}</td>
+          </tr>
+          {% empty %}
+          <tr class="empty-row"><td colspan="4">No houses under this landlord.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# ---------- Payouts ---------- #}
+  <div class="tab-pane fade {% if active_tab == 'payouts' %}show active{% endif %}" id="tab-payouts">
+    <form method="get" class="card filter-bar mb-3">
+      <input type="hidden" name="tab" value="payouts">
+      <div class="filter-grid">
+        <div style="grid-column: span 2;">
+          <label>Search</label>
+          <input type="search" name="pq" value="{{ payouts_q }}" class="form-control" placeholder="Payout number, reference, or exact amount">
+        </div>
+        <div>
+          <label>Page size</label>
+          <select name="pps" class="form-select" onchange="this.form.submit()">
+            {% for s in payouts_sizes %}
+              <option value="{{ s }}" {% if s == payouts_size %}selected{% endif %}>{{ s }} per page</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="filter-actions">
+          <button type="submit" class="btn btn-outline-primary"><i class="bi bi-search me-1"></i>Search</button>
+          <a href="?tab=payouts" class="btn btn-outline-secondary">Reset</a>
+        </div>
+      </div>
+    </form>
+
+    <div class="data-toolbar">
+      <div class="toolbar-meta"><strong>{{ payouts_total }}</strong> payout{{ payouts_total|pluralize }}{% if payouts_q %} matching “{{ payouts_q }}”{% endif %}</div>
+      <div class="toolbar-actions">
+        <a class="btn btn-sm btn-primary" href="{% url 'billing:landlord-payout-create' %}?landlord={{ landlord.pk }}"><i class="bi bi-plus-lg me-1"></i>New payout</a>
+      </div>
+    </div>
+
+    <div class="data-table-wrap">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Number</th><th>Paid at</th><th>Method</th><th>Bank</th>
+            <th>Reference</th><th>Period</th><th>Status</th><th class="text-end">Amount (UGX)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in payouts %}
+          <tr>
+            <td><a href="{% url 'billing:landlord-payout-detail' p.pk %}" class="fw-semibold"><code>{{ p.number }}</code></a></td>
+            <td>{{ p.paid_at|date:"Y-m-d H:i" }}</td>
+            <td><span class="badge text-bg-light">{{ p.get_method_display }}</span></td>
+            <td>{{ p.bank_account.name }}</td>
+            <td>{{ p.reference_number|default:"—" }}</td>
+            <td class="small text-muted">{{ p.period_from|default:"—" }} → {{ p.period_to|default:"—" }}</td>
+            <td>
+              {% if p.approval_status == 'APPROVED' or p.approval_status == 'AUTO_APPROVED' %}
+                <span class="badge text-bg-success">{{ p.get_approval_status_display }}</span>
+              {% elif p.approval_status == 'PENDING' %}
+                <span class="badge text-bg-warning">Pending</span>
+              {% elif p.approval_status == 'REJECTED' %}
+                <span class="badge text-bg-danger">Rejected</span>
+              {% else %}<span class="badge text-bg-secondary">{{ p.get_approval_status_display }}</span>{% endif %}
+            </td>
+            <td class="text-end num fw-semibold">{{ p.amount }}</td>
+          </tr>
+          {% empty %}
+          <tr class="empty-row"><td colspan="8">{% if payouts_q %}No payouts match “{{ payouts_q }}”.{% else %}No payouts recorded.{% endif %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if payouts_page.has_other_pages %}
+    <nav class="mt-3" aria-label="Payout pages">
+      <ul class="pagination pagination-sm mb-0 justify-content-end">
+        <li class="page-item {% if not payouts_page.has_previous %}disabled{% endif %}">
+          <a class="page-link" href="?tab=payouts&pq={{ payouts_q }}&pps={{ payouts_size }}&pp={{ payouts_page.previous_page_number|default:1 }}">Previous</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">Page {{ payouts_page.number }} of {{ payouts_page.paginator.num_pages }}</span></li>
+        <li class="page-item {% if not payouts_page.has_next %}disabled{% endif %}">
+          <a class="page-link" href="?tab=payouts&pq={{ payouts_q }}&pps={{ payouts_size }}&pp={{ payouts_page.next_page_number|default:payouts_page.paginator.num_pages }}">Next</a>
+        </li>
+      </ul>
+    </nav>
+    {% endif %}
+  </div>
+
+  {# ---------- Messages ---------- #}
+  <div class="tab-pane fade {% if active_tab == 'messages' %}show active{% endif %}" id="tab-messages">
+    <form method="get" class="card filter-bar mb-3">
+      <input type="hidden" name="tab" value="messages">
+      <div class="filter-grid">
+        <div>
+          <label>Page size</label>
+          <select name="mps" class="form-select" onchange="this.form.submit()">
+            {% for s in notifications_sizes %}
+              <option value="{{ s }}" {% if s == notifications_size %}selected{% endif %}>{{ s }} per page</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </form>
+
+    <div class="data-toolbar">
+      <div class="toolbar-meta"><strong>{{ notifications_total }}</strong> message{{ notifications_total|pluralize }}</div>
+    </div>
+
+    <div class="data-table-wrap">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>When</th><th>Channel</th><th>Template</th><th>Recipient</th>
+            <th>Subject / Body</th><th>Status</th><th>Provider</th><th>Sent</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for n in notifications %}
+          <tr>
+            <td>{{ n.created_at|date:"Y-m-d H:i" }}</td>
+            <td><span class="badge text-bg-light">{{ n.get_channel_display }}</span></td>
+            <td>{{ n.get_template_display }}</td>
+            <td><code>{{ n.recipient }}</code></td>
+            <td class="text-muted text-truncate" style="max-width:280px;" title="{{ n.body }}">
+              {% if n.subject %}<strong>{{ n.subject }}</strong> · {% endif %}{{ n.body|truncatechars:80 }}
+            </td>
+            <td>
+              {% if n.status == 'SENT' %}<span class="badge text-bg-success">Sent</span>
+              {% elif n.status == 'FAILED' %}<span class="badge text-bg-danger" title="{{ n.error_detail }}">Failed</span>
+              {% else %}<span class="badge text-bg-secondary">{{ n.get_status_display }}</span>{% endif %}
+            </td>
+            <td class="small">{{ n.provider|default:"—" }}{% if n.provider_message_id %}<br><code class="small text-muted">{{ n.provider_message_id|truncatechars:20 }}</code>{% endif %}</td>
+            <td class="small">{{ n.sent_at|date:"Y-m-d H:i"|default:"—" }}</td>
+          </tr>
+          {% empty %}
+          <tr class="empty-row"><td colspan="8">No messages sent to this landlord.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if notifications_page.has_other_pages %}
+    <nav class="mt-3" aria-label="Message pages">
+      <ul class="pagination pagination-sm mb-0 justify-content-end">
+        <li class="page-item {% if not notifications_page.has_previous %}disabled{% endif %}">
+          <a class="page-link" href="?tab=messages&mps={{ notifications_size }}&mp={{ notifications_page.previous_page_number|default:1 }}">Previous</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">Page {{ notifications_page.number }} of {{ notifications_page.paginator.num_pages }}</span></li>
+        <li class="page-item {% if not notifications_page.has_next %}disabled{% endif %}">
+          <a class="page-link" href="?tab=messages&mps={{ notifications_size }}&mp={{ notifications_page.next_page_number|default:notifications_page.paginator.num_pages }}">Next</a>
+        </li>
+      </ul>
+    </nav>
+    {% endif %}
+  </div>
 </div>
 
-<div class="card">
-  <h2>Estates</h2>
-  <table class="data">
-    <thead><tr><th>Name</th><th>Location</th><th>Houses</th></tr></thead>
-    <tbody>
-      {% for e in landlord.estates.all %}
-        <tr>
-          <td><a href="{% url 'core:estate-detail' e.pk %}">{{ e.name }}</a></td>
-          <td>{{ e.location|default:"—" }}</td>
-          <td>{{ e.houses.count }}</td>
-        </tr>
-      {% empty %}<tr><td colspan="3" class="muted">No estates.</td></tr>{% endfor %}
-    </tbody>
-  </table>
-</div>
-
-<form method="post" action="{% url 'core:landlord-delete' landlord.pk %}" class="danger-zone"
-      onsubmit="return confirm('Delete this landlord?');">
-  {% csrf_token %}
-  <button type="submit" class="btn danger">Delete landlord</button>
-</form>
+<script>
+  document.querySelectorAll('#landlord-tabs [data-tab]').forEach(btn => {
+    btn.addEventListener('shown.bs.tab', e => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', e.target.dataset.tab);
+      window.history.replaceState({}, '', url);
+    });
+  });
+</script>
 {% endblock %}

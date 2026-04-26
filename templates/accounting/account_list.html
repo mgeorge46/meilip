@@ -11,14 +11,14 @@
   </div>
 </section>
 
-<div class="card mb-4">
-  <form method="get" class="row g-3 align-items-end">
-    <div class="col-md-5">
-      <label class="form-label">Search</label>
+<div class="card filter-bar mb-3">
+  <form method="get" class="filter-grid">
+    <div>
+      <label>Search</label>
       <input type="search" class="form-control" name="q" value="{{ request.GET.q|default:'' }}" placeholder="Code or name">
     </div>
-    <div class="col-md-4">
-      <label class="form-label">Category</label>
+    <div>
+      <label>Category</label>
       <select name="category" class="form-select">
         <option value="">All categories</option>
         <option value="ASSET"     {% if request.GET.category == 'ASSET' %}selected{% endif %}>Asset</option>
@@ -28,48 +28,49 @@
         <option value="EXPENSE"   {% if request.GET.category == 'EXPENSE' %}selected{% endif %}>Expense</option>
       </select>
     </div>
-    <div class="col-md-3 d-grid">
+    <div class="filter-actions">
       <button type="submit" class="btn btn-outline-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
+      <a href="{% url 'accounting:account-list' %}" class="btn btn-outline-secondary">Reset</a>
     </div>
   </form>
 </div>
 
-<div class="card p-0">
-  <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
-      <thead class="table-light">
-        <tr>
-          <th>Code</th><th>Name</th><th>Category</th><th>Normal</th>
-          <th>System code</th><th class="text-center">Postable</th><th class="text-end">Balance (UGX)</th>
-          <th class="text-end">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for acct in accounts %}
-        <tr>
-          <td><code>{{ acct.code }}</code></td>
-          <td>
-            {% if acct.parent %}<span class="text-muted">└─ </span>{% endif %}
-            <a href="{% url 'accounting:account-detail' acct.pk %}" class="fw-semibold">{{ acct.name }}</a>
-          </td>
-          <td><span class="badge text-bg-light">{{ acct.account_type.get_category_display }}</span></td>
-          <td>{{ acct.account_type.get_normal_balance_display }}</td>
-          <td><code class="small text-muted">{{ acct.system_code|default:'—' }}</code></td>
-          <td class="text-center">
-            {% if acct.is_postable %}<span class="badge text-bg-success">Yes</span>
-            {% else %}<span class="badge text-bg-secondary">Rollup</span>{% endif %}
-          </td>
-          <td class="text-end num">{{ acct.balance|default:0 }}</td>
-          <td class="text-end">
-            <a href="{% url 'accounting:account-update' acct.pk %}" class="btn btn-sm btn-outline-secondary" aria-label="Edit"><i class="bi bi-pencil"></i></a>
-          </td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="8" class="text-center text-muted py-4">No accounts match.</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
+{% include "core/_data_toolbar.html" with total_count=paginator.count %}
+
+<div class="data-table-wrap">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Code</th><th>Name</th><th>Category</th><th>Normal</th>
+        <th>System code</th><th class="text-center">Postable</th>
+        <th class="text-end">Balance (UGX)</th><th class="text-end">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for acct in accounts %}
+      <tr>
+        <td><code>{{ acct.code }}</code></td>
+        <td>
+          {% if acct.parent %}<span class="text-muted">└─ </span>{% endif %}
+          <a href="{% url 'accounting:account-detail' acct.pk %}" class="fw-semibold">{{ acct.name }}</a>
+        </td>
+        <td><span class="badge text-bg-light">{{ acct.account_type.get_category_display }}</span></td>
+        <td>{{ acct.account_type.get_normal_balance_display }}</td>
+        <td><code class="small text-muted">{{ acct.system_code|default:'—' }}</code></td>
+        <td class="text-center">
+          {% if acct.is_postable %}<span class="badge text-bg-success">Yes</span>
+          {% else %}<span class="badge text-bg-secondary">Rollup</span>{% endif %}
+        </td>
+        <td class="text-end num">{{ acct.balance|default:0 }}</td>
+        <td class="text-end">
+          <a href="{% url 'accounting:account-update' acct.pk %}" class="btn btn-sm btn-outline-secondary" aria-label="Edit"><i class="bi bi-pencil"></i></a>
+        </td>
+      </tr>
+    {% empty %}
+      <tr class="empty-row"><td colspan="8">No accounts match your filters.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
 </div>
 
 {% include "core/pagination.html" %}

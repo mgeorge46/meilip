@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Invoice schedules · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Invoice Schedules</h1>
+    <p class="muted mb-0">Active tenancies and their recurring-invoice generation status.</p>
+  </div>
+</section>
+
+<div class="card filter-bar mb-3">
+  <form method="get" class="filter-grid">
+    <div style="grid-column: span 2;">
+      <label>Search</label>
+      <input type="search" name="q" value="{{ request.GET.q|default:'' }}" class="form-control"
+             placeholder="Tenant, house, or estate name">
+    </div>
+    <div>
+      <label>Tenancy status</label>
+      <select name="status" class="form-select">
+        <option value="ACTIVE"   {% if request.GET.status == 'ACTIVE' or not request.GET.status %}selected{% endif %}>Active</option>
+        <option value="PROSPECT" {% if request.GET.status == 'PROSPECT' %}selected{% endif %}>Prospect</option>
+        <option value="EXITED"   {% if request.GET.status == 'EXITED' %}selected{% endif %}>Exited</option>
+        <option value="">(any)</option>
+      </select>
+    </div>
+    <div>
+      <label>Generation</label>
+      <select name="gen_status" class="form-select">
+        <option value="">Any</option>
+        <option value="ACTIVE"  {% if request.GET.gen_status == 'ACTIVE' %}selected{% endif %}>Active</option>
+        <option value="PAUSED"  {% if request.GET.gen_status == 'PAUSED' %}selected{% endif %}>Paused</option>
+        <option value="STOPPED" {% if request.GET.gen_status == 'STOPPED' %}selected{% endif %}>Stopped</option>
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-outline-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
+      <a href="{% url 'billing:invoice-schedule-list' %}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </form>
+</div>
+
+{% include "core/_data_toolbar.html" with total_count=paginator.count %}
+
+<div class="data-table-wrap">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Estate</th><th>House</th><th>Tenant</th><th>Tenancy</th>
+        <th>Generation</th><th>Move-in</th><th>Billing start</th>
+        <th class="text-end">Rent (UGX)</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in schedules %}
+      <tr>
+        <td>{{ t.house.estate.name }}</td>
+        <td><a href="{% url 'core:house-detail' t.house_id %}" class="fw-semibold">{{ t.house }}</a></td>
+        <td><a href="{% url 'core:tenant-detail' t.tenant_id %}">{{ t.tenant.full_name }}</a></td>
+        <td>
+          {% if t.status == 'ACTIVE' %}<span class="badge text-bg-success">Active</span>
+          {% elif t.status == 'PROSPECT' %}<span class="badge text-bg-info">Prospect</span>
+          {% else %}<span class="badge text-bg-secondary">{{ t.get_status_display }}</span>{% endif %}
+        </td>
+        <td>
+          {% if t.invoice_generation_status == 'ACTIVE' %}<span class="badge text-bg-success">Active</span>
+          {% elif t.invoice_generation_status == 'PAUSED' %}<span class="badge text-bg-warning">Paused</span>
+          {% else %}<span class="badge text-bg-danger">Stopped</span>{% endif %}
+          {% if t.invoice_generation_note %}<div class="small text-muted">{{ t.invoice_generation_note|truncatechars:40 }}</div>{% endif %}
+        </td>
+        <td class="small">{{ t.move_in_date|default:"—" }}</td>
+        <td class="small">{{ t.billing_start_date|default:"—" }}</td>
+        <td class="text-end num">{{ t.house.periodic_rent|default:"—" }}</td>
+        <td class="text-end">
+          <form method="post" action="{% url 'billing:invoice-pause' t.pk %}" class="d-inline">
+            {% csrf_token %}
+            <input type="hidden" name="gen_status" value="{% if t.invoice_generation_status == 'ACTIVE' %}PAUSED{% else %}ACTIVE{% endif %}">
+            <button class="btn btn-sm btn-outline-secondary" title="Toggle pause/resume">
+              {% if t.invoice_generation_status == 'ACTIVE' %}Pause{% else %}Resume{% endif %}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="empty-row"><td colspan="9">No tenancies match your filters.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include "core/pagination.html" %}
+{% endblock %}

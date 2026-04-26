@@ -1,0 +1,74 @@
+{% extends "accounting/_base.html" %}
+{% block accounting_title %}Trial Balance{% endblock %}
+{% block accounting_content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Trial Balance</h1>
+    <p class="muted mb-0">Per-account posted debits and credits. Totals must balance.</p>
+  </div>
+  <div class="actions">
+    <span class="badge {% if is_balanced %}text-bg-success{% else %}text-bg-danger{% endif %}">
+      {% if is_balanced %}<i class="bi bi-check2-circle me-1"></i>Balanced{% else %}<i class="bi bi-exclamation-triangle me-1"></i>Unbalanced{% endif %}
+    </span>
+  </div>
+</section>
+
+<div class="card filter-bar mb-3">
+  <form method="get" class="filter-grid">
+    <div>
+      <label>From</label>
+      <input type="date" class="form-control" name="from" value="{{ date_from }}">
+    </div>
+    <div>
+      <label>To</label>
+      <input type="date" class="form-control" name="to" value="{{ date_to }}">
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-outline-primary"><i class="bi bi-funnel me-1"></i>Update</button>
+      <a href="{% url 'accounting:trial-balance' %}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </form>
+</div>
+
+{% include "core/_data_toolbar.html" with total_count=rows|length %}
+
+<div class="data-table-wrap">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Code</th><th>Account</th><th>Category</th>
+        <th class="text-end">Period debits</th><th class="text-end">Period credits</th>
+        <th class="text-end">Debit balance</th><th class="text-end">Credit balance</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><code>{{ r.account.code }}</code></td>
+        <td><a href="{% url 'accounting:account-detail' r.account.pk %}">{{ r.account.name }}</a></td>
+        <td><span class="badge text-bg-light">{{ r.account.account_type.get_category_display }}</span></td>
+        <td class="text-end num">{{ r.debit }}</td>
+        <td class="text-end num">{{ r.credit }}</td>
+        <td class="text-end num">{% if r.debit_balance %}{{ r.debit_balance }}{% endif %}</td>
+        <td class="text-end num">{% if r.credit_balance %}{{ r.credit_balance }}{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr class="empty-row"><td colspan="7">No posted journal lines in this period.</td></tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="5" class="text-end">Totals</td>
+        <td class="text-end num">{{ total_debit }}</td>
+        <td class="text-end num">{{ total_credit }}</td>
+      </tr>
+      <tr>
+        <td colspan="5" class="text-end">Difference</td>
+        <td colspan="2" class="text-end num fw-bold {% if is_balanced %}text-success{% else %}text-danger{% endif %}">
+          {{ total_debit|add:"0" }} − {{ total_credit|add:"0" }}
+        </td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{% endblock %}

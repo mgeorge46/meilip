@@ -1,57 +1,197 @@
 {% extends "base.html" %}
-{% block title %}Pending Approvals · Meili Property{% endblock %}
+{% block title %}Approvals · Meili Property{% endblock %}
 {% block content %}
-<section class="page-header"><h1>Pending Approvals</h1></section>
+<section class="page-header between">
+  <div>
+    <h1 class="h3 mb-1">Approvals</h1>
+    <p class="muted mb-0">Maker-checker workflow. Self-approval is blocked. Double-entry accounting entries post automatically on approval.</p>
+  </div>
+</section>
 
-<div class="tabs">
-  {% for code, label in tabs %}
-    <a href="?tab={{ code }}" class="tab {% if code == active_tab %}active{% endif %}">{{ label }}</a>
+<ul class="nav nav-tabs detail-tabs" role="tablist">
+  {% for code, label, cnt in tab_rows %}
+    <li class="nav-item">
+      <a class="nav-link {% if code == active_tab %}active{% endif %}" href="?tab={{ code }}&status={{ active_status }}">
+        {{ label }}
+        {% if cnt %}<span class="badge text-bg-warning ms-1">{{ cnt }}</span>{% endif %}
+      </a>
+    </li>
   {% endfor %}
+</ul>
+
+{# ---- Status segmented filter + date/maker filters ---- #}
+<div class="card filter-bar mb-3">
+  <form method="get" class="filter-grid">
+    <input type="hidden" name="tab" value="{{ active_tab }}">
+    <div>
+      <label>Status</label>
+      <select name="status" class="form-select" onchange="this.form.submit()">
+        {% for code, label in status_filters %}
+          <option value="{{ code }}" {% if code == active_status %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Submitted from</label>
+      <input type="date" name="from" class="form-control" value="{{ filter_from }}">
+    </div>
+    <div>
+      <label>Submitted to</label>
+      <input type="date" name="to" class="form-control" value="{{ filter_to }}">
+    </div>
+    <div>
+      <label>Maker (name or email)</label>
+      <input type="search" name="maker_q" class="form-control" value="{{ filter_maker_q }}" placeholder="e.g. Jane or jane@…">
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-outline-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
+      <a href="?tab={{ active_tab }}&status={{ active_status }}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </form>
 </div>
 
-<div class="card">
-  <table class="data">
-    <thead><tr>
-      <th>ID</th><th>Maker</th><th>Submitted</th><th>Summary</th><th class="actions">Actions</th>
-    </tr></thead>
+<div class="data-toolbar">
+  <div class="toolbar-meta"><strong>{{ paginator.count }}</strong> {{ active_status }} {{ active_tab|title }}{{ paginator.count|pluralize }}</div>
+</div>
+
+<div class="data-table-wrap">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th style="width:32px;"></th>
+        <th>Number</th><th>Maker</th><th>Submitted</th>
+        <th>Summary</th><th>Status</th>
+        <th class="text-end" style="min-width:360px;">Actions</th>
+      </tr>
+    </thead>
     <tbody>
       {% for item in items %}
-        <tr class="{% if item.submitted_at and item.submitted_at < overdue_threshold %}overdue{% endif %}">
-          <td>#{{ item.pk }}</td>
-          <td>{{ item.maker|default:"—" }}</td>
+        <tr class="{% if item.submitted_at and item.submitted_at < overdue_threshold and item.approval_status == 'PENDING' %}table-warning{% endif %}"
+            data-bs-toggle="collapse" data-bs-target="#row-{{ forloop.counter }}" style="cursor:pointer;">
+          <td><i class="bi bi-chevron-right"></i></td>
+          <td><code>{{ item.number|default:item.pk }}</code></td>
           <td>
-            {{ item.submitted_at|default:"—" }}
-            {% if item.submitted_at and item.submitted_at < overdue_threshold %}
-              <span class="badge warn">Overdue &gt;24h</span>
+            {% if item.maker %}{{ item.maker.get_full_name|default:item.maker.email }}{% else %}—{% endif %}
+          </td>
+          <td>
+            {{ item.submitted_at|date:"Y-m-d H:i"|default:"—" }}
+            {% if item.submitted_at and item.submitted_at < overdue_threshold and item.approval_status == 'PENDING' %}
+              <br><span class="badge text-bg-warning">Overdue &gt;24h</span>
             {% endif %}
           </td>
           <td>
             {% if active_tab == 'payment' %}
-              Payment {{ item.amount }} — {{ item.tenant.full_name }} via {{ item.get_method_display }}
+              Payment <span class="num">{{ item.amount }}</span> — {{ item.tenant.full_name }} via {{ item.get_method_display }}
             {% elif active_tab == 'adhoc' %}
-              Ad-hoc {{ item.amount }} — {{ item.description }} ({{ item.tenant_house }})
+              Ad-hoc <span class="num">{{ item.amount }}</span> — {{ item.description }}
             {% elif active_tab == 'void' %}
-              Void of invoice {{ item.invoice.number|default:item.invoice.pk }} — {{ item.get_reason_category_display }}
+              Void invoice <code>{{ item.invoice.number|default:item.invoice.pk }}</code> — {{ item.get_reason_category_display }}
             {% elif active_tab == 'credit' %}
-              Credit {{ item.amount }} on invoice {{ item.original_invoice.number|default:item.original_invoice.pk }}
+              Credit <span class="num">{{ item.amount }}</span> on <code>{{ item.original_invoice.number|default:item.original_invoice.pk }}</code>
             {% elif active_tab == 'refund' %}
-              Refund {{ item.amount }} via {{ item.get_method_display }} from {{ item.get_source_display }}
+              Refund <span class="num">{{ item.amount }}</span> via {{ item.get_method_display }}
+            {% elif active_tab == 'payout' %}
+              Payout <span class="num">{{ item.amount }}</span> to {{ item.landlord.full_name }}
+            {% elif active_tab == 'supplier_payment' %}
+              <span class="num">{{ item.amount }}</span> to {{ item.supplier.name }} — {{ item.service_description|truncatechars:60 }}
+            {% elif active_tab == 'expense' %}
+              {{ item.claimant.full_name }} · {{ item.get_category_display }} · <span class="num">{{ item.amount }}</span>
+              {% if item.receipt_photo %}<a class="ms-1" href="{{ item.receipt_photo.url }}" target="_blank" onclick="event.stopPropagation()" title="Receipt"><i class="bi bi-paperclip"></i></a>{% endif %}
             {% endif %}
           </td>
-          <td class="actions">
-            <form method="post" action="{% url 'billing:approval-action' active_tab item.pk 'approve' %}" style="display:inline">
-              {% csrf_token %}
-              <button class="btn primary" type="submit">Approve</button>
-            </form>
-            <form method="post" action="{% url 'billing:approval-action' active_tab item.pk 'reject' %}" style="display:inline">
-              {% csrf_token %}
-              <input type="text" name="reason" placeholder="Reason" required>
-              <button class="btn danger" type="submit">Reject</button>
-            </form>
+          <td>
+            {% if item.approval_status == 'APPROVED' or item.approval_status == 'AUTO_APPROVED' %}<span class="badge text-bg-success">{{ item.get_approval_status_display }}</span>
+            {% elif item.approval_status == 'PENDING' %}<span class="badge text-bg-warning">Pending</span>
+            {% elif item.approval_status == 'REJECTED' %}<span class="badge text-bg-danger">Rejected</span>
+            {% elif item.approval_status == 'SENT_BACK' %}<span class="badge text-bg-info">Sent back</span>
+            {% else %}<span class="badge text-bg-secondary">{{ item.get_approval_status_display }}</span>{% endif %}
+          </td>
+          <td class="text-end" onclick="event.stopPropagation()">
+            {% if item.approval_status == 'PENDING' %}
+              <div class="d-inline-flex gap-1 align-items-center flex-wrap justify-content-end">
+                {# Approve form — with optional bank override #}
+                <form method="post" action="{% url 'billing:approval-action' active_tab item.pk 'approve' %}" class="d-inline-flex gap-1 align-items-center">
+                  {% csrf_token %}
+                  {% if active_tab == 'expense' or active_tab == 'payout' or active_tab == 'supplier_payment' or active_tab == 'refund' or active_tab == 'payment' %}
+                    <select name="bank_account_id" class="form-select form-select-sm" style="width:auto;max-width:180px;" {% if active_tab == 'expense' %}required{% endif %}>
+                      <option value="">{% if active_tab == 'expense' %}Reimburse from…{% else %}Keep current bank{% endif %}</option>
+                      {% for ba in bank_accounts %}
+                        <option value="{{ ba.pk }}">{{ ba.name }}</option>
+                      {% endfor %}
+                    </select>
+                  {% endif %}
+                  <button class="btn btn-sm btn-success" type="submit"><i class="bi bi-check2 me-1"></i>Approve</button>
+                </form>
+                {# Send-back (soft reject) #}
+                <form method="post" action="{% url 'billing:approval-action' active_tab item.pk 'sendback' %}" class="d-inline-flex gap-1 align-items-center">
+                  {% csrf_token %}
+                  <input type="text" name="reason" class="form-control form-control-sm" style="width:150px;" placeholder="What to fix?" required>
+                  <button class="btn btn-sm btn-outline-warning" type="submit" title="Send back to maker"><i class="bi bi-arrow-return-left"></i></button>
+                </form>
+                {# Hard reject #}
+                <form method="post" action="{% url 'billing:approval-action' active_tab item.pk 'reject' %}" class="d-inline-flex gap-1 align-items-center">
+                  {% csrf_token %}
+                  <input type="text" name="reason" class="form-control form-control-sm" style="width:140px;" placeholder="Reject reason" required>
+                  <button class="btn btn-sm btn-outline-danger" type="submit" title="Reject"><i class="bi bi-x-lg"></i></button>
+                </form>
+              </div>
+            {% elif item.approval_status == 'SENT_BACK' %}
+              {# Maker can resubmit after fixing #}
+              {% if item.maker_id == request.user.id %}
+                <form method="post" action="{% url 'billing:approval-action' active_tab item.pk 'resubmit' %}" class="d-inline">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-primary"><i class="bi bi-arrow-up-circle me-1"></i>Resubmit</button>
+                </form>
+              {% else %}
+                <span class="small text-muted">Waiting on maker</span>
+              {% endif %}
+            {% else %}
+              <span class="small text-muted">Closed {{ item.approved_at|date:"Y-m-d H:i"|default:"—" }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {# Expandable detail row #}
+        <tr class="collapse" id="row-{{ forloop.counter }}">
+          <td></td>
+          <td colspan="6" class="bg-light">
+            <div class="row g-3 py-2">
+              <div class="col-md-6">
+                <div class="small text-muted text-uppercase">Approval trail</div>
+                <dl class="kv small mb-0">
+                  <dt>Maker</dt><dd>{% if item.maker %}{{ item.maker.get_full_name|default:item.maker.email }}{% else %}—{% endif %}</dd>
+                  <dt>Submitted</dt><dd>{{ item.submitted_at|date:"Y-m-d H:i"|default:"—" }}</dd>
+                  <dt>Checker</dt><dd>{% if item.checker %}{{ item.checker.get_full_name|default:item.checker.email }}{% else %}—{% endif %}</dd>
+                  <dt>Decided</dt><dd>{{ item.approved_at|date:"Y-m-d H:i"|default:"—" }}</dd>
+                  {% if item.rejection_reason %}<dt class="text-danger">Reason</dt><dd class="text-danger">{{ item.rejection_reason }}</dd>{% endif %}
+                </dl>
+              </div>
+              <div class="col-md-6">
+                <div class="small text-muted text-uppercase">GL effect (on approval)</div>
+                <div class="small">
+                  {% if active_tab == 'payment' %}
+                    Dr Bank / Cr AR Tenants (via FIFO allocation)
+                  {% elif active_tab == 'payout' %}
+                    Dr <code>2100</code> Landlord Payable / Cr <code>{{ item.bank_account.ledger_account.code|default:'?' }}</code> {{ item.bank_account.name }}
+                  {% elif active_tab == 'supplier_payment' %}
+                    Dr <code>5100</code> Maintenance &amp; Repairs / Cr <code>{{ item.bank_account.ledger_account.code|default:'?' }}</code> {{ item.bank_account.name }}
+                  {% elif active_tab == 'expense' %}
+                    Dr {{ item.get_category_display }} expense / Cr reimbursement bank (picked at approve time)
+                  {% elif active_tab == 'refund' %}
+                    Dr Security-Deposit / Cr Bank
+                  {% elif active_tab == 'void' %}
+                    Reversal of original invoice's JE
+                  {% elif active_tab == 'credit' %}
+                    Dr Revenue / Cr AR
+                  {% elif active_tab == 'adhoc' %}
+                    Dr AR / Cr Income (posted with the next invoice)
+                  {% endif %}
+                </div>
+              </div>
+            </div>
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan="5" class="muted">No pending items.</td></tr>
+        <tr class="empty-row"><td colspan="7">No {{ active_status }} items in this tab.</td></tr>
       {% endfor %}
     </tbody>
   </table>

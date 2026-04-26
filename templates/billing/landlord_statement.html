@@ -1,9 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Landlord Statement · {{ landlord.full_name }}{% endblock %}
 {% block content %}
-<section class="page-header">
-  <h1>Landlord Statement</h1>
-  <p class="muted">{{ landlord.full_name }} · Advance balances are fiduciary and not shown to the landlord.</p>
+<section class="page-header between">
+  <div>
+    <h1>Landlord Statement</h1>
+    <p class="muted">{{ landlord.full_name }} · Advance balances are fiduciary and not shown to the landlord.</p>
+  </div>
+  <div class="actions d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'billing:landlord-statement-index' %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    <a class="btn btn-primary" href="?format=pdf" target="_blank"><i class="bi bi-file-earmark-pdf me-1"></i>Download PDF</a>
+  </div>
 </section>
 <div class="card">
   <table class="data">

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}New landlord payout · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">New Landlord Payout</h1>
+    <p class="muted mb-0">Record a disbursement to a landlord. Submits for maker-checker approval (unless you're trusted).</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-outline-secondary" href="{% url 'billing:landlord-payout-list' %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+  </div>
+</section>
+
+<form method="post" class="card p-4" novalidate>
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Landlord <span class="text-danger">*</span></label>
+      {{ form.landlord }}
+      {% if form.landlord.errors %}<div class="invalid-feedback d-block">{{ form.landlord.errors|join:", " }}</div>{% endif %}
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Amount (UGX) <span class="text-danger">*</span></label>
+      {{ form.amount }}
+      {% if form.amount.errors %}<div class="invalid-feedback d-block">{{ form.amount.errors|join:", " }}</div>{% endif %}
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Paid at</label>
+      {{ form.paid_at }}
+    </div>
+
+    <div class="col-md-4">
+      <label class="form-label">Method <span class="text-danger">*</span></label>
+      {{ form.method }}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">From bank account <span class="text-danger">*</span></label>
+      {{ form.bank_account }}
+      {% if form.bank_account.errors %}<div class="invalid-feedback d-block">{{ form.bank_account.errors|join:", " }}</div>{% endif %}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">External reference</label>
+      {{ form.reference_number }}
+      <div class="form-text">Bank ref, MoMo txn id, cheque no. (optional).</div>
+    </div>
+
+    <div class="col-md-6">
+      <label class="form-label">Statement period start</label>
+      {{ form.period_from }}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Statement period end</label>
+      {{ form.period_to }}
+    </div>
+
+    <div class="col-12">
+      <label class="form-label">Notes</label>
+      {{ form.notes }}
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 justify-content-end mt-4">
+    <a class="btn btn-outline-secondary" href="{% url 'billing:landlord-payout-list' %}">Cancel</a>
+    <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Submit payout</button>
+  </div>
+</form>
+{% endblock %}

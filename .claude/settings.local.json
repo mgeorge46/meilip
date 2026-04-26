@@ -68,7 +68,30 @@
       "Bash(\"C:\\\\Users\\\\GeorgeMuddu\\\\Envs\\\\meili\\\\Scripts\\\\python.exe\" manage.py test --noinput)",
       "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py makemigrations accounts)",
       "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py test core accounts dashboard)",
-      "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py test)"
+      "Bash(\"C:/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe\" manage.py test)",
+      "Bash(grep -E \"\\\\.\\(html\\)$\")",
+      "Bash(xargs grep *)",
+      "Bash(py -c \"import django; django.setup\")",
+      "Bash(py -m py_compile accounting/views.py core/utils.py)",
+      "Bash(py -m py_compile core/views.py accounting/views.py accounting/forms.py core/utils.py)",
+      "Bash(py -m py_compile core/views.py core/management/commands/seed_demo.py)",
+      "Bash(py manage.py seed_demo)",
+      "Bash(/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py seed_demo)",
+      "Bash(/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py seed_demo --reset)",
+      "Bash(/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py makemigrations billing)",
+      "Bash(/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py migrate billing)",
+      "Bash(/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe -c \"import django; django.setup\\(\\)\")",
+      "Bash(/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py check)",
+      "Bash(/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py shell -c ' *)",
+      "Bash(/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe -c ' *)",
+      "Bash(/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py makemigrations core)",
+      "Bash(/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py migrate core)",
+      "Bash(python manage.py showmigrations --plan)",
+      "Bash(/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe -c \"import weasyprint; print\\('weasyprint OK:', weasyprint.__version__\\)\")",
+      "Bash(/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py showmigrations billing)",
+      "Bash(python manage.py shell)",
+      "Bash(C:\\\\\\\\Users\\\\\\\\GeorgeMuddu\\\\\\\\Envs\\\\\\\\meili\\\\\\\\Scripts\\\\\\\\python.exe manage.py shell)",
+      "Bash(/d/python/envs/meili/Scripts/python.exe manage.py shell)"
     ]
   }
 }

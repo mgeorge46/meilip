@@ -636,12 +636,41 @@ class TenantHouse(CoreBaseModel):
     class Meta:
         ordering = ["-created_at"]
         constraints = [
+            # A tenant can only hold ONE live (prospect or active) tenancy
+            # on a given house at a time. Exited rows are excluded so a tenant
+            # can re-rent the same house after a prior exit.
             models.UniqueConstraint(
                 fields=["tenant", "house"],
-                condition=models.Q(is_deleted=False),
+                condition=models.Q(is_deleted=False) & ~models.Q(status="EXITED"),
                 name="uniq_active_tenant_house",
-            )
+            ),
+            # SPEC: one house can only be ACTIVE-ly rented by a single tenant at a time.
+            # A tenant may still have multiple houses (separate ACTIVE rows with
+            # distinct `house`). Exited/Prospect rows are excluded from this check.
+            models.UniqueConstraint(
+                fields=["house"],
+                condition=models.Q(status="ACTIVE", is_deleted=False),
+                name="uniq_active_tenancy_per_house",
+            ),
         ]
+
+    def clean(self):
+        """Application-level guard mirroring `uniq_active_tenancy_per_house`.
+        Raises a readable ValidationError before the DB constraint fires.
+        """
+        from django.core.exceptions import ValidationError
+        super().clean()
+        if self.status == self.Status.ACTIVE and self.house_id:
+            clash = TenantHouse.objects.filter(
+                house=self.house, status=self.Status.ACTIVE, is_deleted=False,
+            ).exclude(pk=self.pk).first()
+            if clash:
+                raise ValidationError({
+                    "house": (
+                        f"This house already has an active tenant ({clash.tenant}). "
+                        f"Exit the current tenancy before assigning a new one."
+                    )
+                })
 
     def __str__(self):
         return f"{self.tenant.full_name} @ {self.house} [{self.status}]"
@@ -676,3 +705,85 @@ class Supplier(CoreBaseModel):
 
     def get_absolute_url(self):
         return reverse("core:supplier-detail", args=[self.pk])
+
+
+# ---------------------------------------------------------------------------
+# Collections performance — targets + tiered bonus brackets (Phase F.2)
+# ---------------------------------------------------------------------------
+# CollectionsTarget       — monthly UGX target assigned to an Employee
+# CollectionsBonusBracket — admin-configurable: "if an employee collects
+#                           between X and Y UGX in a month, pay them N%"
+# ---------------------------------------------------------------------------
+class CollectionsTarget(CoreBaseModel):
+    employee = models.ForeignKey(
+        Employee, on_delete=models.PROTECT, related_name="collections_targets",
+    )
+    month = models.DateField(
+        help_text="Any date in the target month. Stored normalised to day 1.",
+    )
+    target_amount = UGXField(
+        help_text="UGX the employee is expected to collect during this month.",
+    )
+    notes = models.TextField(blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["-month", "employee__full_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["employee", "month"],
+                condition=models.Q(is_deleted=False),
+                name="uniq_collections_target_per_month",
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.month:
+            self.month = self.month.replace(day=1)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.employee.full_name} · {self.month:%b %Y} · UGX {self.target_amount}"
+
+
+class CollectionsBonusBracket(CoreBaseModel):
+    """A single tier in the admin-configurable bonus schedule.
+
+    Rule: if an employee's collected amount for a month falls into the
+    inclusive range [min_amount, max_amount], their bonus = collected *
+    rate_percent / 100.  `max_amount=null` means "and above".
+
+    Brackets must not overlap. The first matching ACTIVE bracket wins.
+    """
+    label = models.CharField(
+        max_length=120,
+        help_text="e.g. '100k–2M tier' — shown in reports.",
+    )
+    min_amount = UGXField(
+        help_text="Inclusive lower bound of monthly collected amount.",
+    )
+    max_amount = UGXField(
+        null=True, blank=True,
+        help_text="Inclusive upper bound. Leave blank for 'and above'.",
+    )
+    rate_percent = models.DecimalField(
+        max_digits=5, decimal_places=2,
+        help_text="Bonus rate as a percentage of collected amount, e.g. 2.00 = 2%.",
+    )
+    is_active = models.BooleanField(default=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["min_amount"]
+
+    def __str__(self):
+        upper = f"{self.max_amount}" if self.max_amount is not None else "∞"
+        return f"{self.label} [{self.min_amount}–{upper}] → {self.rate_percent}%"
+
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        if self.max_amount is not None and self.min_amount > self.max_amount:
+            raise ValidationError({"max_amount": "Upper bound must be >= lower bound."})

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Landlord payouts · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Landlord Payouts</h1>
+    <p class="muted mb-0">Disbursements from Meili to landlords. Maker-checker required unless the maker is trusted.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="{% url 'billing:landlord-payout-create' %}"><i class="bi bi-plus-lg me-1"></i>New payout</a>
+  </div>
+</section>
+
+<div class="card filter-bar mb-3">
+  <form method="get" class="filter-grid">
+    <div style="grid-column: span 2;">
+      <label>Search</label>
+      <input type="search" name="q" value="{{ request.GET.q|default:'' }}" class="form-control"
+             placeholder="Number, landlord, reference, or amount">
+    </div>
+    <div>
+      <label>Status</label>
+      <select name="status" class="form-select">
+        <option value="">Any</option>
+        <option value="PENDING"       {% if request.GET.status == 'PENDING' %}selected{% endif %}>Pending</option>
+        <option value="APPROVED"      {% if request.GET.status == 'APPROVED' %}selected{% endif %}>Approved</option>
+        <option value="AUTO_APPROVED" {% if request.GET.status == 'AUTO_APPROVED' %}selected{% endif %}>Auto-approved</option>
+        <option value="REJECTED"      {% if request.GET.status == 'REJECTED' %}selected{% endif %}>Rejected</option>
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-outline-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
+      <a href="{% url 'billing:landlord-payout-list' %}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </form>
+</div>
+
+{% include "core/_data_toolbar.html" with total_count=paginator.count %}
+
+<div class="data-table-wrap">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Number</th><th>Landlord</th><th>Paid at</th><th>Method</th><th>Reference</th>
+        <th>Status</th><th class="text-end">Amount (UGX)</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in payouts %}
+      <tr>
+        <td><a href="{% url 'billing:landlord-payout-detail' p.pk %}" class="fw-semibold"><code>{{ p.number }}</code></a></td>
+        <td><a href="{% url 'core:landlord-detail' p.landlord_id %}">{{ p.landlord.full_name }}</a></td>
+        <td>{{ p.paid_at|date:"Y-m-d H:i" }}</td>
+        <td><span class="badge text-bg-light">{{ p.get_method_display }}</span></td>
+        <td>{{ p.reference_number|default:"—" }}</td>
+        <td>
+          {% if p.approval_status == 'APPROVED' or p.approval_status == 'AUTO_APPROVED' %}
+            <span class="badge text-bg-success">{{ p.get_approval_status_display }}</span>
+          {% elif p.approval_status == 'PENDING' %}
+            <span class="badge text-bg-warning">Pending</span>
+          {% elif p.approval_status == 'REJECTED' %}
+            <span class="badge text-bg-danger">Rejected</span>
+          {% else %}<span class="badge text-bg-secondary">{{ p.get_approval_status_display }}</span>{% endif %}
+        </td>
+        <td class="text-end num fw-semibold">{{ p.amount }}</td>
+        <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{% url 'billing:landlord-payout-detail' p.pk %}">View</a></td>
+      </tr>
+      {% empty %}
+      <tr class="empty-row"><td colspan="8">No landlord payouts match your filters.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include "core/pagination.html" %}
+{% endblock %}

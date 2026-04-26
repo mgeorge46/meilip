@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Expense {{ claim.number }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Expense Claim <code>{{ claim.number }}</code></h1>
+    <p class="muted mb-0">
+      By {{ claim.claimant.full_name }} ·
+      {% if claim.approval_status == 'APPROVED' or claim.approval_status == 'AUTO_APPROVED' %}
+        <span class="badge text-bg-success">{{ claim.get_approval_status_display }}</span>
+      {% elif claim.approval_status == 'PENDING' %}
+        <span class="badge text-bg-warning">Pending approval</span>
+      {% elif claim.approval_status == 'REJECTED' %}
+        <span class="badge text-bg-danger">Rejected</span>
+      {% endif %}
+    </p>
+  </div>
+  <div class="actions d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'billing:expense-claim-list' %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    {% if claim.approval_status == 'PENDING' %}
+      <a class="btn btn-primary" href="{% url 'billing:approvals' %}"><i class="bi bi-check2-circle me-1"></i>Approvals queue</a>
+    {% endif %}
+  </div>
+</section>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card p-3 mb-3">
+      <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Claim details</h2>
+      <dl class="kv mb-0">
+        <dt>Amount</dt><dd class="num fw-semibold">UGX {{ claim.amount }}</dd>
+        <dt>Category</dt><dd>{{ claim.get_category_display }}</dd>
+        <dt>Description</dt><dd>{{ claim.description }}</dd>
+        <dt>Incurred on</dt><dd>{{ claim.incurred_at|date:"Y-m-d" }}</dd>
+        <dt>Related house</dt><dd>{% if claim.related_house %}<a href="{% url 'core:house-detail' claim.related_house_id %}">{{ claim.related_house }}</a>{% else %}—{% endif %}</dd>
+        <dt>Reimbursement source</dt><dd>{{ claim.reimbursement_bank.name }}</dd>
+        {% if claim.notes %}<dt>Notes</dt><dd>{{ claim.notes|linebreaksbr }}</dd>{% endif %}
+        {% if claim.source_journal %}
+          <dt>Journal entry</dt>
+          <dd><a href="{% url 'accounting:journal-detail' claim.source_journal_id %}"><code>{{ claim.source_journal.reference }}</code></a></dd>
+        {% endif %}
+      </dl>
+    </div>
+
+    {% if claim.receipt_photo %}
+    <div class="card p-3">
+      <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Receipt attachment</h2>
+      {% with name=claim.receipt_photo.name|lower %}
+        {% if name|slice:"-4:" == ".pdf" %}
+          <a href="{{ claim.receipt_photo.url }}" target="_blank" class="btn btn-outline-primary">
+            <i class="bi bi-file-earmark-pdf me-1"></i>Open PDF receipt
+          </a>
+        {% else %}
+          <a href="{{ claim.receipt_photo.url }}" target="_blank">
+            <img src="{{ claim.receipt_photo.url }}" alt="Receipt" style="max-width:100%; max-height:480px; border-radius:8px; border:1px solid #eee;">
+          </a>
+        {% endif %}
+      {% endwith %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card p-3">
+      <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Approval trail</h2>
+      <dl class="kv mb-0">
+        <dt>Maker</dt><dd>{% if claim.maker %}{{ claim.maker.get_full_name|default:claim.maker.email }}{% else %}—{% endif %}</dd>
+        <dt>Submitted</dt><dd>{{ claim.submitted_at|date:"Y-m-d H:i"|default:"—" }}</dd>
+        <dt>Checker</dt><dd>{% if claim.checker %}{{ claim.checker.get_full_name|default:claim.checker.email }}{% else %}—{% endif %}</dd>
+        <dt>Decided</dt><dd>{{ claim.approved_at|date:"Y-m-d H:i"|default:"—" }}</dd>
+        {% if claim.rejection_reason %}<dt>Rejected</dt><dd class="text-danger">{{ claim.rejection_reason }}</dd>{% endif %}
+      </dl>
+    </div>
+  </div>
+</div>
+{% endblock %}
