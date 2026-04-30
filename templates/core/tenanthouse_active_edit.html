@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Edit active tenancy · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1">Edit Active Tenancy</h1>
+    <p class="muted mb-0">{{ object.tenant.full_name }} · {{ object.house }}</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-outline-secondary" href="{% url 'core:tenant-detail' object.tenant_id %}?tab=tenancies"><i class="bi bi-arrow-left me-1"></i>Back</a>
+  </div>
+</section>
+
+<div class="alert alert-info small">
+  <i class="bi bi-shield-lock me-1"></i>
+  Billing-disturbing fields (tenant, house, status, billing start, move-in) are locked while the tenancy is ACTIVE. To change those, use the <strong>Exit workflow</strong> and create a fresh prospect.
+</div>
+
+<form method="post" class="card p-4" novalidate>
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">Planned move-out date</label>
+      {{ form.move_out_date }}
+      <div class="form-text">Informational. Final exit goes through the Exit workflow.</div>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Security deposit (UGX)</label>
+      {{ form.security_deposit }}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Initial deposit (UGX)</label>
+      {{ form.initial_deposit }}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Sales rep</label>
+      {{ form.sales_rep }}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Account manager</label>
+      {{ form.account_manager }}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Collections person</label>
+      {{ form.collections_person }}
+    </div>
+  </div>
+  {% if form.errors %}<div class="alert alert-danger mt-3">{{ form.errors }}</div>{% endif %}
+  <div class="d-flex gap-2 justify-content-end mt-3">
+    <a class="btn btn-outline-secondary" href="{% url 'core:tenant-detail' object.tenant_id %}?tab=tenancies">Cancel</a>
+    <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Save changes</button>
+  </div>
+</form>
+{% endblock %}

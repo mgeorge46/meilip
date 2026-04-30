@@ -356,6 +356,10 @@ class Estate(CoreBaseModel, SettingsMixin):
     name = models.CharField(max_length=200)
     location = models.CharField(max_length=255, blank=True)
     description = models.TextField(blank=True)
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Inactive estates stop billing on every house under them.",
+    )
 
     history = HistoricalRecords()
 
@@ -391,6 +395,10 @@ class House(CoreBaseModel, SettingsMixin):
     periodic_rent = UGXField(null=True, blank=True)
     occupancy_status = models.CharField(
         max_length=24, choices=Occupancy.choices, default=Occupancy.VACANT
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Inactive houses stop billing on the active tenancy.",
     )
 
     history = HistoricalRecords()
@@ -787,3 +795,47 @@ class CollectionsBonusBracket(CoreBaseModel):
         from django.core.exceptions import ValidationError
         if self.max_amount is not None and self.min_amount > self.max_amount:
             raise ValidationError({"max_amount": "Upper bound must be >= lower bound."})
+
+
+# ---------------------------------------------------------------------------
+# Company profile — singleton holding org name, address, logo (Phase G.1)
+# ---------------------------------------------------------------------------
+def _company_logo_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f"company/logo{ext}"
+
+
+class CompanyProfile(models.Model):
+    """One row only — drives the receipt header, landlord-statement masthead,
+    PDF footer, etc. Edit via /core/admin-settings/company/.
+    """
+    name = models.CharField(max_length=120, default="Meili Property")
+    legal_name = models.CharField(max_length=200, blank=True)
+    tax_id = models.CharField(max_length=64, blank=True)
+    address_line_1 = models.CharField(max_length=200, blank=True)
+    address_line_2 = models.CharField(max_length=200, blank=True)
+    city = models.CharField(max_length=80, blank=True)
+    country = models.CharField(max_length=80, default="Uganda")
+    phone = models.CharField(max_length=24, blank=True)
+    email = models.EmailField(blank=True)
+    website = models.URLField(blank=True)
+    logo = models.ImageField(upload_to=_company_logo_path, null=True, blank=True)
+    receipt_footer = models.CharField(
+        max_length=255, blank=True,
+        help_text="Optional small print printed at the bottom of receipts.",
+    )
+
+    class Meta:
+        verbose_name = "Company profile"
+        verbose_name_plural = "Company profile"
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def current(cls):
+        obj = cls.objects.first()
+        if obj is None:
+            obj = cls.objects.create()
+        return obj

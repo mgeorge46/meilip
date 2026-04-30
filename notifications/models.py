@@ -29,6 +29,8 @@ class Template(models.TextChoices):
     RECEIPT = "RECEIPT", "Receipt"
     OVERDUE_REMINDER = "OVERDUE_REMINDER", "Overdue reminder"
     STATEMENT = "STATEMENT", "Landlord statement"
+    PASSWORD_RESET = "PASSWORD_RESET", "Password reset"
+    ADMIN_PASSWORD = "ADMIN_PASSWORD", "Admin-issued password"
     GENERIC = "GENERIC", "Generic"
 
 

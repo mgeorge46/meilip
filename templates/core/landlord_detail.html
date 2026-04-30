@@ -16,6 +16,11 @@
   <div class="actions d-flex gap-2">
     <a class="btn btn-outline-secondary" href="{% url 'core:landlord-list' %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
     <a class="btn btn-outline-primary" href="{% url 'billing:landlord-payout-create' %}?landlord={{ landlord.pk }}"><i class="bi bi-cash-coin me-1"></i>Record payout</a>
+    {% if not landlord.user_id %}
+      <a class="btn btn-outline-secondary" href="{% url 'accounts:user-create' %}?landlord={{ landlord.pk }}" title="Create a portal login for this landlord"><i class="bi bi-person-plus me-1"></i>Create login</a>
+    {% else %}
+      <a class="btn btn-outline-secondary" href="{% url 'accounts:user-detail' landlord.user_id %}" title="Manage portal login"><i class="bi bi-person-check me-1"></i>Login</a>
+    {% endif %}
     <a class="btn btn-primary" href="{% url 'core:landlord-update' landlord.pk %}"><i class="bi bi-pencil me-1"></i>Edit</a>
   </div>
 </section>

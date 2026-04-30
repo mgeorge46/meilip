@@ -591,6 +591,7 @@ def try_apply_advance_to_invoice(invoice, *, user=None):
         take = min(hold.amount, remaining_inv)
         if entry is None:
             entry = JournalEntry.objects.create(
+                reference=allocate_number("JE"),
                 entry_date=timezone.localdate(),
                 memo=f"Advance applied to invoice {invoice.pk}",
                 source=JournalEntry.Source.PAYMENT,

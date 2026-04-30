@@ -115,12 +115,74 @@ class InvoiceListView(RoleRequiredMixin, PaginatedListView):
         return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
+        from decimal import Decimal as _D
+        from datetime import date as _date
+        from .models import PaymentAllocation
+
         ctx = super().get_context_data(**kwargs)
         ctx["statuses"] = Invoice.Status.choices
         ctx["q"] = self.request.GET.get("q", "")
         ctx["selected_status"] = self.request.GET.get("status", "")
         ctx["filter_from"] = self.request.GET.get("from", "")
         ctx["filter_to"] = self.request.GET.get("to", "")
+
+        # KPI strip: month-on-month view of billed / collected / carry-forward.
+        today = timezone.localdate()
+        m_start = today.replace(day=1)
+        # Next month start
+        if m_start.month == 12:
+            m_next = _date(m_start.year + 1, 1, 1)
+        else:
+            m_next = _date(m_start.year, m_start.month + 1, 1)
+        # Prev month
+        if m_start.month == 1:
+            p_start = _date(m_start.year - 1, 12, 1)
+        else:
+            p_start = _date(m_start.year, m_start.month - 1, 1)
+
+        billed_this_month = (
+            Invoice.objects.filter(
+                issue_date__gte=m_start, issue_date__lt=m_next,
+                status__in=[Invoice.Status.ISSUED, Invoice.Status.PARTIALLY_PAID,
+                            Invoice.Status.PAID, Invoice.Status.OVERDUE],
+            ).aggregate(s=models.Sum("total"))["s"] or _D("0")
+        )
+        collected_this_month = (
+            PaymentAllocation.objects.filter(
+                applied_at__gte=m_start, applied_at__lt=m_next,
+                is_advance_hold=False,
+            ).aggregate(s=models.Sum("amount"))["s"] or _D("0")
+        )
+        billed_prev_month = (
+            Invoice.objects.filter(
+                issue_date__gte=p_start, issue_date__lt=m_start,
+                status__in=[Invoice.Status.ISSUED, Invoice.Status.PARTIALLY_PAID,
+                            Invoice.Status.PAID, Invoice.Status.OVERDUE],
+            ).aggregate(s=models.Sum("total"))["s"] or _D("0")
+        )
+        collected_prev_month = (
+            PaymentAllocation.objects.filter(
+                applied_at__gte=p_start, applied_at__lt=m_start,
+                is_advance_hold=False,
+            ).aggregate(s=models.Sum("amount"))["s"] or _D("0")
+        )
+        # Carry-forward = total outstanding on invoices issued BEFORE this month.
+        carry_forward = _D("0")
+        for inv in Invoice.objects.filter(
+            issue_date__lt=m_start,
+            status__in=[Invoice.Status.ISSUED, Invoice.Status.PARTIALLY_PAID,
+                        Invoice.Status.OVERDUE],
+        ).only("id", "total"):
+            carry_forward += inv.outstanding
+
+        ctx["kpi_month_label"] = m_start.strftime("%B %Y")
+        ctx["kpi_prev_label"]  = p_start.strftime("%B %Y")
+        ctx["kpi_billed_this_month"] = int(billed_this_month)
+        ctx["kpi_collected_this_month"] = int(collected_this_month)
+        ctx["kpi_billed_prev_month"] = int(billed_prev_month)
+        ctx["kpi_collected_prev_month"] = int(collected_prev_month)
+        ctx["kpi_carry_forward"] = int(carry_forward)
+        ctx["kpi_outstanding_this_month"] = int(billed_this_month - collected_this_month)
         return ctx
 
 
@@ -485,7 +547,7 @@ class RefundCreateView(RoleRequiredMixin, CreateView):
 # Approvals queue + approve/reject actions
 # ---------------------------------------------------------------------------
 def _approval_models():
-    from .models import ExpenseClaim, LandlordPayout, SupplierPayment
+    from .models import ExitSettlement, ExpenseClaim, LandlordPayout, SupplierPayment
     return {
         "payment": (Payment, apply_payment),
         "adhoc": (AdHocCharge, None),
@@ -495,6 +557,7 @@ def _approval_models():
         "payout": (LandlordPayout, None),          # signal posts the journal
         "supplier_payment": (SupplierPayment, None),
         "expense": (ExpenseClaim, None),
+        "exit": (ExitSettlement, None),            # execute step is a separate workflow page
     }
 
 
@@ -564,6 +627,7 @@ class ApprovalsQueueView(RoleRequiredMixin, PaginatedListView):
             ("payout", "Landlord Payouts"),
             ("supplier_payment", "Supplier Payments"),
             ("expense", "Expense Claims"),
+            ("exit", "Exit Settlements"),
         ]
         ctx["status_filters"] = [
             ("pending", "Pending"),
@@ -1407,3 +1471,117 @@ class ExpenseClaimDetailView(RoleRequiredMixin, DetailView):
             "claimant", "related_house", "reimbursement_bank", "maker", "checker",
             "source_journal",
         )
+
+
+# ---------------------------------------------------------------------------
+# Security deposit receipt — records the tenant's deposit as a held liability.
+# ---------------------------------------------------------------------------
+class RecordSecurityDepositView(RoleRequiredMixin, View):
+    """Receive a security deposit from a tenant.
+
+    NOT a Payment-allocate-to-Invoice flow. Books:
+        Dr <bank.ledger_account>           (asset ↑)
+        Cr 1500 Security Deposits Held     (liability ↑)
+    Creates / updates a SecurityDeposit row keyed by TenantHouse and stamps
+    the resulting JournalEntry onto `hold_journal`.
+    """
+    required_roles = FINANCE_ROLES + ("COLLECTIONS",)
+
+    def get(self, request, pk):
+        from .forms import SecurityDepositReceiveForm
+        from core.models import TenantHouse
+        th = get_object_or_404(TenantHouse, pk=pk)
+        existing = getattr(th, "security_deposit_record", None)
+        form = SecurityDepositReceiveForm(initial={
+            "amount": th.security_deposit or 0,
+            "received_at": timezone.localdate(),
+        })
+        from django.shortcuts import render
+        return render(request, "billing/security_deposit_receive.html", {
+            "tenancy": th,
+            "form": form,
+            "existing": existing,
+        })
+
+    @transaction.atomic
+    def post(self, request, pk):
+        from .forms import SecurityDepositReceiveForm
+        from .models import SecurityDeposit, SecurityDepositMovement
+        from accounting.models import Account, JournalEntry, JournalEntryLine
+        from accounting.utils import SYS_SECURITY_DEPOSIT_HELD, get_account
+        from .sequences import allocate_number
+        from core.models import TenantHouse
+        from decimal import Decimal as _D
+
+        th = get_object_or_404(TenantHouse, pk=pk)
+        form = SecurityDepositReceiveForm(request.POST)
+        if not form.is_valid():
+            from django.shortcuts import render
+            return render(request, "billing/security_deposit_receive.html", {
+                "tenancy": th,
+                "form": form,
+                "existing": getattr(th, "security_deposit_record", None),
+            })
+        amount = _D(form.cleaned_data["amount"])
+        bank = form.cleaned_data["bank_account"]
+        received_at = form.cleaned_data["received_at"]
+        ref = form.cleaned_data.get("reference") or ""
+        notes = form.cleaned_data.get("notes") or ""
+
+        # Post the GL journal: Dr Bank / Cr Security Deposits Held
+        held_account = get_account(SYS_SECURITY_DEPOSIT_HELD)
+        if not bank.ledger_account_id or not bank.ledger_account.is_postable:
+            messages.error(
+                request,
+                f"Bank account '{bank.name}' has no postable ledger account. "
+                f"Fix it in Bank Accounts settings before recording deposits."
+            )
+            return redirect("core:tenant-detail", pk=th.tenant_id)
+        entry = JournalEntry.objects.create(
+            reference=allocate_number("JE"),
+            entry_date=received_at,
+            memo=f"Security deposit received from {th.tenant.full_name} ({th.house})",
+            source=JournalEntry.Source.MANUAL,
+            created_by=request.user,
+        )
+        JournalEntryLine.objects.create(
+            entry=entry, account=bank.ledger_account,
+            debit=amount, credit=_D("0"),
+            description=f"Deposit ref {ref}" if ref else "Deposit receipt",
+        )
+        JournalEntryLine.objects.create(
+            entry=entry, account=held_account,
+            debit=_D("0"), credit=amount,
+            description=f"Held deposit for {th.tenant.full_name}",
+        )
+        entry.post(user=request.user)
+
+        # Upsert SecurityDeposit row
+        deposit, _ = SecurityDeposit.objects.get_or_create(
+            tenant_house=th,
+            defaults={"amount_held": _D("0"), "hold_journal": entry,
+                      "created_by": request.user, "updated_by": request.user},
+        )
+        deposit.amount_held = (deposit.amount_held or _D("0")) + amount
+        deposit.hold_journal = deposit.hold_journal or entry
+        deposit.recompute_status()
+        deposit.updated_by = request.user
+        deposit.save()
+        SecurityDepositMovement.objects.create(
+            deposit=deposit,
+            kind="HOLD" if hasattr(SecurityDepositMovement.Kind, "HOLD") else SecurityDepositMovement.Kind.APPLY_DAMAGE,
+            amount=amount,
+            note=(f"Receipt {ref}. {notes}".strip()),
+        ) if False else None  # movements typically track applies/refunds, not the initial hold
+
+        # Mirror the live amount onto TenantHouse.security_deposit
+        th.security_deposit = deposit.amount_held
+        th.updated_by = request.user
+        th.save(update_fields=["security_deposit", "updated_by", "updated_at"])
+
+        messages.success(
+            request,
+            f"Security deposit UGX {amount:,} recorded — "
+            f"booked to 1500 Security Deposits Held (liability), JE {entry.reference}."
+        )
+        return redirect("core:tenant-detail", pk=th.tenant_id)

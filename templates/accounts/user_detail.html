@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}{{ u.email }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1 class="h3 mb-1"><i class="bi bi-person-circle text-primary me-2"></i>{{ u.email }}</h1>
+    <p class="muted mb-0">
+      {{ u.get_full_name|default:"(no name)" }} · {{ u.phone|default:"no phone" }}
+      {% if u.is_superuser %} · <span class="badge text-bg-warning">Superuser</span>{% endif %}
+      {% if u.is_active %}
+        · <span class="badge text-bg-success">Active</span>
+      {% else %}
+        · <span class="badge text-bg-danger">Blocked</span>
+      {% endif %}
+    </p>
+  </div>
+  <div class="actions d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary" href="{% url 'accounts:user-list' %}"><i class="bi bi-arrow-left me-1"></i>All users</a>
+    <a class="btn btn-outline-primary" href="{% url 'accounts:user-edit' u.pk %}"><i class="bi bi-pencil me-1"></i>Edit / roles</a>
+    <div class="btn-group">
+      <button type="button" class="btn btn-outline-warning dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-key me-1"></i>Reset password
+      </button>
+      <ul class="dropdown-menu">
+        <li>
+          <form method="post" action="{% url 'accounts:user-reset-password' u.pk %}"
+                onsubmit="return confirm('Email a one-time reset link to {{ u.email|escapejs }}? Their active sessions will be ended.');">
+            {% csrf_token %}<input type="hidden" name="mode" value="email_link">
+            <button class="dropdown-item" {% if not u.email %}disabled{% endif %}>
+              <i class="bi bi-envelope-arrow-up me-2"></i>Email reset link
+              {% if not u.email %}<span class="small text-muted ms-1">(no email)</span>{% endif %}
+            </button>
+          </form>
+        </li>
+        <li>
+          <form method="post" action="{% url 'accounts:user-reset-password' u.pk %}"
+                onsubmit="return confirm('Email a temporary password to {{ u.email|escapejs }}? Their active sessions will be ended.');">
+            {% csrf_token %}<input type="hidden" name="mode" value="email_password">
+            <button class="dropdown-item" {% if not u.email %}disabled{% endif %}>
+              <i class="bi bi-envelope-paper me-2"></i>Email temp password
+            </button>
+          </form>
+        </li>
+        <li><hr class="dropdown-divider"></li>
+        <li>
+          <form method="post" action="{% url 'accounts:user-reset-password' u.pk %}"
+                onsubmit="return confirm('Issue a temporary password and show it inline? Their active sessions will be ended.');">
+            {% csrf_token %}<input type="hidden" name="mode" value="inline">
+            <button class="dropdown-item">
+              <i class="bi bi-eye me-2"></i>Show inline (offline / no email)
+            </button>
+          </form>
+        </li>
+      </ul>
+    </div>
+    {% if u.is_active and u.pk != request.user.pk %}
+      <button type="button" class="btn btn-outline-danger"
+              data-bs-toggle="collapse" data-bs-target="#blk-form">
+        <i class="bi bi-shield-x me-1"></i>Block
+      </button>
+    {% elif not u.is_active %}
+      <form method="post" action="{% url 'accounts:user-unblock' u.pk %}" class="d-inline">
+        {% csrf_token %}
+        <button class="btn btn-outline-success"><i class="bi bi-shield-check me-1"></i>Unblock</button>
+      </form>
+    {% endif %}
+  </div>
+</section>
+
+{% if u.is_active and u.pk != request.user.pk %}
+<div class="collapse mb-3" id="blk-form">
+  <div class="card p-3 border-danger">
+    <form method="post" action="{% url 'accounts:user-block' u.pk %}"
+          class="row g-2 align-items-end mb-0"
+          onsubmit="return confirm('Block {{ u.email|escapejs }}? All active sessions will end.');">
+      {% csrf_token %}
+      <div class="col-md-9">
+        <label class="form-label small text-muted mb-1">Reason (recorded in audit log)</label>
+        <input type="text" name="reason" class="form-control" placeholder="e.g. Left organisation" required>
+      </div>
+      <div class="col-md-3 d-grid">
+        <button type="submit" class="btn btn-danger"><i class="bi bi-shield-x me-1"></i>Confirm block</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card p-3 h-100">
+      <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Account</h2>
+      <dl class="kv mb-0">
+        <dt>Email</dt><dd>{{ u.email }}</dd>
+        <dt>Phone</dt><dd>{{ u.phone|default:"—" }}</dd>
+        <dt>Created</dt><dd>{{ u.created_at|date:"Y-m-d H:i" }}</dd>
+        <dt>Last login</dt><dd>{{ u.last_login_at|date:"Y-m-d H:i"|default:"never" }}</dd>
+        <dt>Last login IP</dt><dd><code>{{ u.last_login_ip|default:"—" }}</code></dd>
+        <dt>Force password change</dt>
+        <dd>{% if u.force_password_change %}<span class="badge text-bg-warning">Yes</span>{% else %}<span class="badge text-bg-light">No</span>{% endif %}</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card p-3 h-100">
+      <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Roles &amp; portal</h2>
+      {% if role_labels %}
+        <div class="mb-3">
+          {% for r in role_labels %}<span class="badge text-bg-info me-1 mb-1">{{ r }}</span>{% endfor %}
+        </div>
+      {% else %}
+        <p class="small text-muted">No roles assigned. The user can log in but won't see anything.</p>
+      {% endif %}
+      <div class="small">
+        {% if 'TENANT' in role_labels %}
+          Lands on <code>/tenant/</code> after login.
+        {% elif 'LANDLORD' in role_labels %}
+          Lands on <code>/landlord/</code>.
+        {% else %}
+          Lands on <code>/</code> (operations dashboard).
+        {% endif %}
+      </div>
+      <a class="btn btn-sm btn-outline-secondary mt-3" href="{% url 'accounts:user-edit' u.pk %}"><i class="bi bi-pencil me-1"></i>Change roles</a>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card p-3 h-100">
+      <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Profile binding</h2>
+      {% if tenant_profile %}
+        <div class="small mb-1">Bound to Tenant:</div>
+        <a href="{% url 'core:tenant-detail' tenant_profile.pk %}" class="fw-semibold">{{ tenant_profile.full_name }}</a>
+      {% endif %}
+      {% if landlord_profile %}
+        <div class="small mb-1">Bound to Landlord:</div>
+        <a href="{% url 'core:landlord-detail' landlord_profile.pk %}" class="fw-semibold">{{ landlord_profile.full_name }}</a>
+      {% endif %}
+      {% if not tenant_profile and not landlord_profile %}
+        <p class="small text-muted mb-0">Not bound to any tenant or landlord profile. Staff users typically don't need a binding.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card p-3 mt-3">
+  <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Recent audit history (last 25)</h2>
+  <div class="data-table-wrap">
+    <table class="table table-hover mb-0">
+      <thead><tr><th>When</th><th>Action</th><th>By</th><th>Detail</th></tr></thead>
+      <tbody>
+        {% for a in audit_entries %}
+          <tr>
+            <td class="small">{{ a.timestamp|date:"Y-m-d H:i" }}</td>
+            <td><span class="badge text-bg-light">{{ a.get_action_display }}</span></td>
+            <td class="small">{{ a.actor.email|default:"system" }}</td>
+            <td class="small text-muted">{% if a.detail %}<code>{{ a.detail }}</code>{% else %}—{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr class="empty-row"><td colspan="4">No audit entries for this user yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

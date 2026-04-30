@@ -121,14 +121,87 @@ class TenantHouseForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # On a NEW tenancy: hide EXITED from the dropdown and default to PROSPECT.
+        # On a NEW tenancy: force status to PROSPECT (renamed in the UI to
+        # "Preparing to move in"). Activation is a separate, deliberate
+        # action (the green Activate button) so users can't accidentally
+        # spawn ACTIVE rows that bypass the activation flow — which would
+        # leave the house mis-flagged Vacant and skip the first-invoice
+        # auto-generation.
         if self.instance.pk is None:
             self.fields["status"].choices = [
-                (TenantHouse.Status.PROSPECT, "Prospect"),
-                (TenantHouse.Status.ACTIVE, "Active"),
+                (TenantHouse.Status.PROSPECT, "Preparing to move in (Prospect)"),
             ]
-            if not self.initial.get("status"):
-                self.initial["status"] = TenantHouse.Status.PROSPECT
+            self.initial["status"] = TenantHouse.Status.PROSPECT
+            self.fields["status"].help_text = (
+                "New tenancies start as Prospect. Use the Activate button on "
+                "the tenant's profile to flip to Active — that step also "
+                "marks the house Occupied and auto-generates the first invoice."
+            )
+
+
+class ActiveTenancyEditForm(forms.ModelForm):
+    """Limited edits allowed on an ACTIVE tenancy.
+
+    Excludes anything that would disturb a running billing cycle: tenant,
+    house, status, billing_start_date, move_in_date are NOT editable. Only
+    soft fields (planned exit date, owners, deposit references, notes)
+    can be touched.
+    """
+    class Meta:
+        model = TenantHouse
+        fields = [
+            "move_out_date",
+            "security_deposit", "initial_deposit",
+            "sales_rep", "account_manager", "collections_person",
+        ]
+        widgets = {
+            "move_out_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "security_deposit": forms.NumberInput(attrs={"class": "form-control text-end num"}),
+            "initial_deposit": forms.NumberInput(attrs={"class": "form-control text-end num"}),
+            "sales_rep": forms.Select(attrs={"class": "form-select"}),
+            "account_manager": forms.Select(attrs={"class": "form-select"}),
+            "collections_person": forms.Select(attrs={"class": "form-select"}),
+        }
+
+
+class TenancyPauseResumeForm(forms.Form):
+    """Pause / resume / stop recurring invoice generation on a tenancy.
+
+    The maker MUST supply a reason; the audit trail is captured in the
+    `invoice_generation_note` field on TenantHouse.
+    """
+    STATUS_CHOICES = [
+        (TenantHouse.InvoiceGenerationStatus.ACTIVE, "Resume (Active)"),
+        (TenantHouse.InvoiceGenerationStatus.PAUSED, "Pause"),
+        (TenantHouse.InvoiceGenerationStatus.STOPPED, "Stop completely"),
+    ]
+    new_status = forms.ChoiceField(
+        choices=STATUS_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    reason = forms.CharField(
+        max_length=200,
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "e.g. Tenant on extended leave 2026-05 to 2026-07",
+        }),
+    )
+    effective_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+        help_text="Optional — informational only. Stored in the audit note. Cannot be in the past.",
+    )
+
+    def clean_effective_date(self):
+        d = self.cleaned_data.get("effective_date")
+        if d:
+            from django.utils import timezone as _tz
+            today = _tz.localdate()
+            if d < today:
+                raise forms.ValidationError(
+                    "Effective date cannot be in the past. Use today or a future date."
+                )
+        return d
 
 
 class EmployeeForm(forms.ModelForm):

@@ -71,4 +71,7 @@ urlpatterns = [
     path("expense-claims/", views.ExpenseClaimListView.as_view(), name="expense-claim-list"),
     path("expense-claims/new/", views.ExpenseClaimCreateView.as_view(), name="expense-claim-create"),
     path("expense-claims/<int:pk>/", views.ExpenseClaimDetailView.as_view(), name="expense-claim-detail"),
+
+    # Security-deposit receipt — books to held-deposit liability (NOT an Invoice flow)
+    path("tenancies/<int:pk>/security-deposit/", views.RecordSecurityDepositView.as_view(), name="security-deposit-receive"),
 ]

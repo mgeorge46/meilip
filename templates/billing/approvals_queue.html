@@ -97,6 +97,11 @@
             {% elif active_tab == 'expense' %}
               {{ item.claimant.full_name }} · {{ item.get_category_display }} · <span class="num">{{ item.amount }}</span>
               {% if item.receipt_photo %}<a class="ms-1" href="{{ item.receipt_photo.url }}" target="_blank" onclick="event.stopPropagation()" title="Receipt"><i class="bi bi-paperclip"></i></a>{% endif %}
+            {% elif active_tab == 'exit' %}
+              Exit settlement: {{ item.tenant_house.tenant.full_name }} · {{ item.tenant_house.house }}
+              · refund <span class="num">{{ item.final_refund_amount }}</span>
+              {% if item.landlord_shortfall %}· shortfall <span class="num text-danger">{{ item.landlord_shortfall }}</span>{% endif %}
+              <a class="ms-1" href="{% url 'billing:exit-workflow' item.tenant_house.pk %}" onclick="event.stopPropagation()" title="Open exit workflow"><i class="bi bi-box-arrow-right"></i></a>
             {% endif %}
           </td>
           <td>
@@ -184,6 +189,9 @@
                     Dr Revenue / Cr AR
                   {% elif active_tab == 'adhoc' %}
                     Dr AR / Cr Income (posted with the next invoice)
+                  {% elif active_tab == 'exit' %}
+                    Approve the envelope here, then open the Exit Workflow page to execute:
+                    held advances → outstanding invoices → damages → optional transfer → refund.
                   {% endif %}
                 </div>
               </div>

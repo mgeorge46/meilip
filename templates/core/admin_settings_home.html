@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Admin settings · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1"><i class="bi bi-gear-fill text-primary me-2"></i>Admin Settings</h1>
+    <p class="muted mb-0">Central hub for system configuration. Group cards by area; click into any to drill down.</p>
+  </div>
+</section>
+
+<div class="row g-3">
+  {# ---------- Company / branding ---------- #}
+  <div class="col-xl-4 col-lg-6">
+    <div class="card h-100 p-3">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <h2 class="h6 text-uppercase mb-0" style="letter-spacing:.05em;"><i class="bi bi-building text-primary me-2"></i>Company</h2>
+        {% if company.logo %}<img src="{{ company.logo.url }}" alt="logo" style="height:36px;">{% endif %}
+      </div>
+      <div class="small text-muted mb-2">{{ company.name }}{% if company.legal_name %} · {{ company.legal_name }}{% endif %}</div>
+      <div class="small mb-3">
+        {% if company.address_line_1 %}{{ company.address_line_1 }}, {% endif %}{{ company.city }}, {{ company.country }}<br>
+        {{ company.phone }}{% if company.email %} · {{ company.email }}{% endif %}
+      </div>
+      <a class="btn btn-sm btn-outline-primary" href="{% url 'core:admin-company' %}"><i class="bi bi-pencil me-1"></i>Edit company profile</a>
+    </div>
+  </div>
+
+  {# ---------- Accounting ---------- #}
+  <div class="col-xl-4 col-lg-6">
+    <div class="card h-100 p-3">
+      <h2 class="h6 text-uppercase mb-2" style="letter-spacing:.05em;"><i class="bi bi-bank text-success me-2"></i>Accounting</h2>
+      <ul class="list-unstyled small mb-3">
+        <li><a href="{% url 'accounting:account-list' %}">Chart of Accounts</a> · {{ accounts_count }} active</li>
+        <li><a href="{% url 'accounting:bankaccount-list' %}">Bank Accounts</a> · {{ bank_accounts_count }} active</li>
+        <li><a href="{% url 'accounting:trial-balance' %}">Trial Balance</a></li>
+        <li><a href="{% url 'accounting:general-ledger' %}">General Ledger</a></li>
+        <li><a href="{% url 'accounting:journal-create' %}">Manual Journal Entry</a></li>
+      </ul>
+    </div>
+  </div>
+
+  {# ---------- Billing config ---------- #}
+  <div class="col-xl-4 col-lg-6">
+    <div class="card h-100 p-3">
+      <h2 class="h6 text-uppercase mb-2" style="letter-spacing:.05em;"><i class="bi bi-receipt text-info me-2"></i>Billing</h2>
+      <ul class="list-unstyled small mb-3">
+        <li>Currencies: {{ currencies_count }} active <span class="text-muted">(via Django admin)</span></li>
+        <li>Billing cycles: {{ billing_cycles_count }} active <span class="text-muted">(via Django admin)</span></li>
+        <li>Tax types: {{ tax_types_count }} active <span class="text-muted">(via Django admin)</span></li>
+        <li><a href="{% url 'billing:invoice-schedule-list' %}">Invoice Schedules</a></li>
+        <li><a href="{% url 'billing:approvals' %}">Approvals queue</a></li>
+      </ul>
+      <a class="btn btn-sm btn-outline-secondary" href="/admin/" target="_blank"><i class="bi bi-tools me-1"></i>Open Django admin</a>
+    </div>
+  </div>
+
+  {# ---------- People & Access ---------- #}
+  <div class="col-xl-4 col-lg-6">
+    <div class="card h-100 p-3">
+      <h2 class="h6 text-uppercase mb-2" style="letter-spacing:.05em;"><i class="bi bi-people-fill text-purple me-2"></i>People &amp; Access</h2>
+      <ul class="list-unstyled small mb-3">
+        <li><a href="{% url 'core:employee-list' %}">Employees</a> · {{ employees_count }} active</li>
+        <li><a href="{% url 'accounts:user-list' %}">System users</a> · {{ users_count }} active</li>
+        <li><a href="{% url 'accounts:audit-log' %}">Audit log</a></li>
+        <li><a href="{% url 'core:supplier-list' %}">Suppliers</a></li>
+      </ul>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'accounts:user-list' %}"><i class="bi bi-people-fill me-1"></i>Manage users</a>
+        <a class="btn btn-sm btn-outline-secondary" href="/admin/accounts/user/" target="_blank"><i class="bi bi-shield-lock me-1"></i>Django admin</a>
+      </div>
+    </div>
+  </div>
+
+  {# ---------- Collections ---------- #}
+  <div class="col-xl-4 col-lg-6">
+    <div class="card h-100 p-3">
+      <h2 class="h6 text-uppercase mb-2" style="letter-spacing:.05em;"><i class="bi bi-graph-up text-warning me-2"></i>Collections</h2>
+      <ul class="list-unstyled small mb-3">
+        <li><a href="{% url 'core:collections-target-list' %}">Targets</a> · {{ targets_count }} on file</li>
+        <li><a href="{% url 'core:collections-bracket-list' %}">Bonus Brackets</a> · {{ brackets_count }} active</li>
+        <li><a href="{% url 'core:report-collections-performance' %}">Performance Report</a></li>
+      </ul>
+    </div>
+  </div>
+
+  {# ---------- Operations ---------- #}
+  <div class="col-xl-4 col-lg-6">
+    <div class="card h-100 p-3">
+      <h2 class="h6 text-uppercase mb-2" style="letter-spacing:.05em;"><i class="bi bi-diagram-3 text-teal me-2"></i>Operations</h2>
+      <ul class="list-unstyled small mb-3">
+        <li><a href="{% url 'core:landlord-list' %}">Landlords</a></li>
+        <li><a href="{% url 'core:estate-list' %}">Estates</a></li>
+        <li><a href="{% url 'core:house-list' %}">Houses</a></li>
+        <li><a href="{% url 'core:report-prospects' %}">Prospects pipeline</a></li>
+        <li><a href="{% url 'notifications:delivery-list' %}">Notification log</a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="alert alert-info mt-4 small">
+  <i class="bi bi-info-circle me-1"></i>
+  <strong>Cascade rule:</strong> when a Landlord is set to <em>Inactive</em>, an Estate has <em>Active</em> unticked, or a House has <em>Active</em> unticked — every active tenancy underneath has its recurring billing automatically <strong>STOPPED</strong>. Reactivating the parent does <em>not</em> auto-resume billing; finance must explicitly resume each tenancy.
+</div>
+{% endblock %}

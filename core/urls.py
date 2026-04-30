@@ -37,6 +37,8 @@ urlpatterns = [
     # Tenancy (TenantHouse)
     path("tenancies/new/", views.TenantHouseCreateView.as_view(), name="tenancy-create"),
     path("tenancies/<int:pk>/edit/", views.TenantHouseUpdateView.as_view(), name="tenancy-update"),
+    path("tenancies/<int:pk>/edit-active/", views.TenantHouseActiveEditView.as_view(), name="tenancy-edit-active"),
+    path("tenancies/<int:pk>/pause-resume/", views.TenancyPauseResumeView.as_view(), name="tenancy-pause-resume"),
     path("tenancies/<int:pk>/activate/", views.TenantHouseActivateView.as_view(), name="tenancy-activate"),
     path("tenancies/<int:pk>/exit/", views.TenantHouseExitView.as_view(), name="tenancy-exit"),
 
@@ -67,4 +69,8 @@ urlpatterns = [
     path("collections/brackets/<int:pk>/edit/", views.CollectionsBracketUpdateView.as_view(), name="collections-bracket-update"),
     path("collections/brackets/<int:pk>/delete/", views.CollectionsBracketDeleteView.as_view(), name="collections-bracket-delete"),
     path("reports/collections-performance/", views.CollectionsPerformanceReportView.as_view(), name="report-collections-performance"),
+
+    # Admin Settings hub
+    path("admin-settings/", views.AdminSettingsHomeView.as_view(), name="admin-settings"),
+    path("admin-settings/company/", views.CompanyProfileView.as_view(), name="admin-company"),
 ]

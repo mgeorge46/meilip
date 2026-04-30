@@ -47,8 +47,16 @@ class ManualInvoiceForm(forms.ModelForm):
 class PaymentForm(forms.ModelForm):
     class Meta:
         model = Payment
-        fields = ["tenant", "amount", "method", "bank_account", "reference_number", "received_at"]
-        widgets = {"received_at": forms.DateTimeInput(attrs={"type": "datetime-local"})}
+        fields = ["tenant", "purpose", "amount", "method", "bank_account", "reference_number", "received_at"]
+        widgets = {
+            "received_at": forms.DateTimeInput(attrs={"type": "datetime-local", "class": "form-control"}),
+            "purpose": forms.Select(attrs={"class": "form-select"}),
+            "tenant": forms.Select(attrs={"class": "form-select"}),
+            "method": forms.Select(attrs={"class": "form-select"}),
+            "bank_account": forms.Select(attrs={"class": "form-select"}),
+            "amount": forms.NumberInput(attrs={"class": "form-control text-end num", "inputmode": "numeric"}),
+            "reference_number": forms.TextInput(attrs={"class": "form-control"}),
+        }
 
 
 class AdHocChargeForm(forms.ModelForm):
@@ -99,6 +107,46 @@ class InvoicePauseForm(forms.Form):
         choices=TenantHouse.InvoiceGenerationStatus.choices
     )
     note = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+
+class SecurityDepositReceiveForm(forms.Form):
+    """Record receipt of a security deposit from a tenant.
+
+    A security deposit is a LIABILITY, not income — it sits on the balance
+    sheet until applied (against damages / unpaid rent at exit) or refunded.
+    The GL entry is therefore:
+        Dr <bank.ledger_account>           (asset ↑)
+        Cr 1500 Security Deposits Held     (liability ↑)
+    NOT a regular Payment-allocates-to-Invoice flow.
+    """
+    amount = forms.DecimalField(
+        max_digits=14, decimal_places=0, min_value=1,
+        widget=forms.NumberInput(attrs={"class": "form-control text-end num", "inputmode": "numeric"}),
+    )
+    bank_account = forms.ModelChoiceField(
+        queryset=None,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="Where the cash / mobile money / bank transfer landed.",
+    )
+    received_at = forms.DateField(
+        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+    )
+    reference = forms.CharField(
+        max_length=64, required=False,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+        help_text="External ref — bank txn id, MoMo code, cheque no.",
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        from accounting.models import BankAccount
+        super().__init__(*args, **kwargs)
+        self.fields["bank_account"].queryset = (
+            BankAccount.objects.filter(is_active=True).order_by("name")
+        )
 
 
 class LandlordPayoutForm(forms.ModelForm):

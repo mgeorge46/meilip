@@ -1,18 +1,32 @@
-# Meili Property — production stack.
+# Meili Property — production stack (bare-metal app + DB, containerised broker + Celery only).
+#
+# Layout assumed:
+#   - Django app (gunicorn) runs on the host as a systemd service
+#   - PostgreSQL runs on the host
+#   - This compose stack provides ONLY: rabbitmq, celery worker, celery beat, flower
+#
+# Connectivity: containers reach the host via `host.docker.internal` (added to
+# every service via `extra_hosts: host-gateway`). Set DATABASE_URL in your .env
+# to point at the host, e.g. `postgresql://postgres:***@host.docker.internal:5432/meili_prd01`.
+# Set CELERY_BROKER_URL=amqp://meili:***@rabbitmq:5672/meili — Celery containers
+# reach the broker by service name; the bare-metal Django app reaches it on
+# localhost:5672 (because we publish the port).
+#
 # Usage:
 #   docker compose -f docker-compose.prod.yml --env-file .env up -d
 #
-# Required env (in .env): SECRET_KEY, ALLOWED_HOSTS, DATABASE_URL,
-#   CELERY_BROKER_URL, CSRF_TRUSTED_ORIGINS, SENTRY_DSN (optional),
-#   AT_API_KEY / AT_USERNAME (if real provider),
-#   EMAIL_HOST / EMAIL_HOST_USER / EMAIL_HOST_PASSWORD.
+# Required env (in .env):
+#   SECRET_KEY, ALLOWED_HOSTS, DATABASE_URL, CELERY_BROKER_URL,
+#   RABBITMQ_USER, RABBITMQ_PASSWORD, RABBITMQ_VHOST, FLOWER_BASIC_AUTH
 
 x-django-env: &django-env
   DJANGO_ENV: prod
   DJANGO_SETTINGS_MODULE: meili_property.settings.prod
   SECRET_KEY: ${SECRET_KEY}
   ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+  # Database lives on the HOST. Use host.docker.internal in the URL.
   DATABASE_URL: ${DATABASE_URL}
+  # Broker container is reachable as `rabbitmq` from sibling containers.
   CELERY_BROKER_URL: ${CELERY_BROKER_URL}
   CELERY_RESULT_BACKEND: django-db
   CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
@@ -30,26 +44,18 @@ x-django-env: &django-env
   AT_SENDER_ID: ${AT_SENDER_ID:-}
   FLOWER_BASIC_AUTH: ${FLOWER_BASIC_AUTH}
 
-services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: meili_postgres
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-meili_prd01}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-meili_prd01}"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
+# Shared host-mapping so containers can reach the bare-metal Postgres on the host
+x-host-gateway: &host-gateway
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
 
+services:
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: meili_rabbitmq
+    ports:
+      - "5672:5672"        # bare-metal Django app connects here
+      - "15672:15672"      # Management UI
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-meili}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
@@ -63,42 +69,14 @@ services:
       retries: 5
     restart: unless-stopped
 
-  web:
-    build: .
-    image: meili_property:latest
-    container_name: meili_web
-    environment:
-      <<: *django-env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    command: >
-      sh -c "python manage.py migrate --noinput &&
-             gunicorn meili_property.wsgi:application
-               --bind 0.0.0.0:8000
-               --workers 3 --timeout 60
-               --access-logfile - --error-logfile -"
-    volumes:
-      - media_data:/app/media
-      - static_data:/app/staticfiles
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/healthz/ || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
   celery_worker:
-    image: meili_property:latest
+    image: meili_property:latest      # built from the same Dockerfile as the host app
     container_name: meili_celery_worker
     environment:
       <<: *django-env
+    <<: *host-gateway
     depends_on:
       rabbitmq:
-        condition: service_healthy
-      postgres:
         condition: service_healthy
     command: celery -A meili_property worker --loglevel=INFO --concurrency=4
     restart: unless-stopped
@@ -110,10 +88,9 @@ services:
     container_name: meili_celery_beat
     environment:
       <<: *django-env
+    <<: *host-gateway
     depends_on:
       rabbitmq:
-        condition: service_healthy
-      postgres:
         condition: service_healthy
     command: celery -A meili_property beat --loglevel=INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
     restart: unless-stopped
@@ -123,30 +100,20 @@ services:
     container_name: meili_flower
     environment:
       <<: *django-env
+    <<: *host-gateway
     depends_on:
       rabbitmq:
         condition: service_healthy
-    command: celery -A meili_property flower --port=5555 --basic_auth=${FLOWER_BASIC_AUTH} --url_prefix=flower
-    restart: unless-stopped
-
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: meili_nginx
-    depends_on:
-      - web
-      - flower
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./tls:/etc/nginx/tls:ro
-      - static_data:/srv/static:ro
-      - media_data:/srv/media:ro
+      - "5555:5555"        # bare-metal nginx (or operator) hits this directly
+    command: celery -A meili_property flower --port=5555 --basic_auth=${FLOWER_BASIC_AUTH}
     restart: unless-stopped
 
 volumes:
-  postgres_data:
   rabbitmq_data:
-  media_data:
-  static_data:
+
+# REMOVED (now on bare metal):
+#   - postgres   (Postgres runs as a systemd service on the host)
+#   - web        (gunicorn runs as a systemd service on the host)
+#   - nginx      (Nginx runs on the host; reverse-proxies to gunicorn @ 127.0.0.1
+#                  and to flower @ 127.0.0.1:5555)

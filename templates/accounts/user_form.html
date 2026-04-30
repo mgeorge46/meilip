@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1 class="h3 mb-1">
+      <i class="bi bi-{% if is_create %}person-plus{% else %}person-gear{% endif %} text-primary me-2"></i>
+      {% if is_create %}New user{% else %}Edit {{ u.email }}{% endif %}
+    </h1>
+    <p class="muted mb-0">
+      {% if is_create %}
+        Create a system user, assign roles, optionally bind to an existing Tenant or Landlord profile.
+      {% else %}
+        Update name, phone, and role membership. Use the Reset password button to issue a temporary password.
+      {% endif %}
+    </p>
+  </div>
+  <div class="actions d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'accounts:user-list' %}"><i class="bi bi-arrow-left me-1"></i>All users</a>
+    {% if not is_create %}
+      <a class="btn btn-outline-secondary" href="{% url 'accounts:user-detail' u.pk %}">View details</a>
+    {% endif %}
+  </div>
+</section>
+
+<form method="post" class="card p-4" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.05em;">Identity</h2>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Email <span class="text-danger">*</span></label>
+      <input type="email" name="email" class="form-control"
+             value="{{ form.email.value|default:'' }}"
+             {% if not is_create %}disabled{% endif %} required>
+      {% if form.email.errors %}<div class="invalid-feedback d-block">{{ form.email.errors|join:', ' }}</div>{% endif %}
+      <div class="form-text">Login uses email. Cannot be changed after creation.</div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Phone <span class="text-danger">*</span></label>
+      <input type="text" name="phone" class="form-control" value="{{ form.phone.value|default:'' }}" required>
+      {% if form.phone.errors %}<div class="invalid-feedback d-block">{{ form.phone.errors|join:', ' }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">First name <span class="text-danger">*</span></label>
+      <input type="text" name="first_name" class="form-control" value="{{ form.first_name.value|default:'' }}" required>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Last name <span class="text-danger">*</span></label>
+      <input type="text" name="last_name" class="form-control" value="{{ form.last_name.value|default:'' }}" required>
+    </div>
+  </div>
+
+  {% if is_create %}
+  <h2 class="h6 text-uppercase text-muted mt-4 mb-3" style="letter-spacing:.05em;">Initial password</h2>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Password (optional)</label>
+      <input type="password" name="password" class="form-control" autocomplete="new-password">
+      <div class="form-text">Leave blank to auto-generate a one-time password (recommended).</div>
+    </div>
+    <div class="col-md-6 d-flex align-items-end">
+      <div class="form-check">
+        <input type="checkbox" name="force_password_change" class="form-check-input" id="fpc" checked>
+        <label for="fpc" class="form-check-label">Require password change on first login</label>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="form-check mt-3">
+    <input type="checkbox" name="force_password_change" class="form-check-input" id="fpc"
+           {% if form.force_password_change.value %}checked{% endif %}>
+    <label for="fpc" class="form-check-label">Require password change on next login</label>
+  </div>
+  {% endif %}
+
+  <h2 class="h6 text-uppercase text-muted mt-4 mb-3" style="letter-spacing:.05em;">Roles <span class="text-danger">*</span></h2>
+  <div class="row g-2">
+    {% for value, label in form.roles.field.choices %}
+      <div class="col-md-3 col-sm-4 col-6">
+        <div class="form-check">
+          <input type="checkbox" name="roles" value="{{ value }}" class="form-check-input"
+                 id="role_{{ value }}"
+                 {% if value in form.roles.value %}checked{% endif %}>
+          <label class="form-check-label" for="role_{{ value }}">{{ label }}</label>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% if form.roles.errors %}<div class="invalid-feedback d-block">{{ form.roles.errors|join:', ' }}</div>{% endif %}
+  <div class="form-text mt-1">
+    Tenants land on <code>/tenant/</code>, landlords on <code>/landlord/</code>, staff on the operations dashboard.
+  </div>
+
+  {% if is_create %}
+    <input type="hidden" name="bind_tenant" value="{{ form.bind_tenant.value|default:'' }}">
+    <input type="hidden" name="bind_landlord" value="{{ form.bind_landlord.value|default:'' }}">
+    {% if form.bind_tenant.value or form.bind_landlord.value %}
+      <div class="alert alert-info small mt-3">
+        <i class="bi bi-link-45deg me-1"></i>
+        On save, this user will be linked to {% if form.bind_tenant.value %}Tenant #{{ form.bind_tenant.value }}{% else %}Landlord #{{ form.bind_landlord.value }}{% endif %}
+        via the existing OneToOne profile relation.
+      </div>
+    {% endif %}
+  {% endif %}
+
+  <div class="d-flex gap-2 justify-content-end mt-4">
+    <a class="btn btn-outline-secondary" href="{% url 'accounts:user-list' %}">Cancel</a>
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-check2-circle me-1"></i>{% if is_create %}Create user{% else %}Save changes{% endif %}
+    </button>
+  </div>
+</form>
+{% endblock %}

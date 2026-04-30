@@ -453,12 +453,17 @@ def execute_exit_settlement(
         "status", "executed_at", "executed_by", "updated_at",
     ])
 
-    # Mark the tenancy itself exited if not already.
+    # Mark the tenancy itself exited and stop the recurring-invoice generator
+    # so Celery beat skips it next cycle.
     if th.status != TenantHouse.Status.EXITED:
         th.status = TenantHouse.Status.EXITED
         th.move_out_date = th.move_out_date or timezone.localdate()
+        th.invoice_generation_status = TenantHouse.InvoiceGenerationStatus.STOPPED
         th.updated_by = user
-        th.save(update_fields=["status", "move_out_date", "updated_by", "updated_at"])
+        th.save(update_fields=[
+            "status", "move_out_date", "invoice_generation_status",
+            "updated_by", "updated_at",
+        ])
 
     return settlement
 

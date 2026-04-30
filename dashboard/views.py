@@ -13,7 +13,19 @@ from . import services
 @login_required
 @require_GET
 def home(request):
-    """Employee dashboard landing page — live KPIs + charts."""
+    """Employee dashboard landing page — live KPIs + charts.
+
+    Tenants and landlords are bounced to their dedicated portals so they
+    never see staff KPIs or operational data.
+    """
+    user = request.user
+    if not user.is_superuser:
+        from accounts.views import landing_for
+        landing = landing_for(user)
+        if landing != "/":
+            from django.shortcuts import redirect
+            return redirect(landing)
+
     cards = services.stat_cards()
     ageing = services.ar_ageing()
     trend = services.revenue_trend()

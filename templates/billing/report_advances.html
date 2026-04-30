@@ -73,18 +73,18 @@
           <td>
             {% with landlord=row.payment.tenant.tenancies.first.house.effective_landlord %}
               {% if landlord.is_meili_owned %}
-                <span class="badge meili">Meili-Owned</span>
+                <span class="badge text-bg-primary">Meili-Owned</span>
               {% else %}
-                <span class="badge managed">Managed</span>
+                <span class="badge text-bg-info">Managed</span>
               {% endif %}
             {% endwith %}
           </td>
           <td>{{ row.allocated_at }}</td>
           <td>
             {% if row.stale_badge %}
-              <span class="badge watch" title="Held for ≥ 2 full billing periods">≥ 2 periods</span>
+              <span class="badge text-bg-warning" title="Held for ≥ 2 full billing periods">≥ 2 periods</span>
             {% else %}
-              <span class="muted">—</span>
+              <span class="text-muted">—</span>
             {% endif %}
           </td>
         </tr>

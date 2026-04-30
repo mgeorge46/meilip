@@ -19,6 +19,8 @@ _TEMPLATE_SUBJECTS = {
     Template.RECEIPT: "Your receipt",
     Template.OVERDUE_REMINDER: "Rent overdue reminder",
     Template.STATEMENT: "Landlord statement",
+    Template.PASSWORD_RESET: "Reset your Meili Property password",
+    Template.ADMIN_PASSWORD: "Your Meili Property account",
     Template.GENERIC: "Meili Property notification",
 }
 
@@ -72,6 +74,29 @@ def _fallback_body(template_name: str, ctx: dict) -> str:
         return (
             f"Statement {ctx.get('period', '')}: "
             f"Net UGX {ctx.get('net_amount', 0):,}."
+        )
+    if template_name == Template.PASSWORD_RESET:
+        # Prefer the human-friendly `expires_in` (e.g. "30 minutes"); fall
+        # back to `expiry_hours` for older callers.
+        expires_in = ctx.get("expires_in") or f"{ctx.get('expiry_hours', 24)} hours"
+        return (
+            f"Hi {ctx.get('user_name', '')},\n\n"
+            f"Someone (hopefully you) requested a password reset for your "
+            f"Meili Property account ({ctx.get('email', '')}).\n\n"
+            f"Click the link below to set a new password. It expires in "
+            f"{expires_in}.\n\n"
+            f"{ctx.get('reset_url', '')}\n\n"
+            f"If you didn't request this, ignore this email — your password "
+            f"won't change."
+        )
+    if template_name == Template.ADMIN_PASSWORD:
+        return (
+            f"Hi {ctx.get('user_name', '')},\n\n"
+            f"An administrator has issued you a temporary password for your "
+            f"Meili Property account ({ctx.get('email', '')}).\n\n"
+            f"Temporary password: {ctx.get('temp_password', '')}\n\n"
+            f"Sign in at {ctx.get('login_url', '')} — you'll be required to "
+            f"set a new password before continuing."
         )
     return ctx.get("message", "Meili Property notification")
 

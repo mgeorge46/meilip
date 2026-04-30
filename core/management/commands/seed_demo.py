@@ -67,6 +67,7 @@ class Command(BaseCommand):
             landlord_payouts = self._create_landlord_payouts(landlords, ctx["bank"])
             supplier_payments = self._create_supplier_payments(suppliers, houses, ctx["bank"])
             self._create_pending_approvals(landlords, suppliers, houses, ctx["bank"])
+            self._create_portal_users(tenants, landlords)
             self._assign_collections_persons(houses)
             self._create_bonus_brackets()
             self._create_collections_targets()
@@ -636,3 +637,54 @@ class Command(BaseCommand):
                         notes=f"{DEMO_TAG} — auto-seeded target",
                     ),
                 )
+
+    # ----------------------------------------------- portal users (Phase G.2)
+    def _create_portal_users(self, tenants, landlords):
+        """For each demo Tenant / Landlord, create a User with a known
+        password and bind it via the OneToOne `user` field. Assigns the
+        TENANT / LANDLORD role so the post-login redirect routes them to
+        their portal at /tenant/ or /landlord/.
+        """
+        from accounts.models import Role, UserRole
+        DEMO_PASSWORD = "Demo!Pass2026"
+
+        tenant_role, _ = Role.objects.get_or_create(
+            name=Role.Name.TENANT, defaults={"description": "Tenant portal user"},
+        )
+        landlord_role, _ = Role.objects.get_or_create(
+            name=Role.Name.LANDLORD, defaults={"description": "Landlord portal user"},
+        )
+
+        def _ensure_user(email, phone, first, last):
+            user = User.objects.filter(email=email).first()
+            if user:
+                return user, False
+            # User.phone is unique — fall back if the tenant's phone is already taken
+            if phone and User.objects.filter(phone=phone).exists():
+                phone = ""
+            user = User(
+                email=email, phone=phone or "",
+                first_name=first or "", last_name=last or "",
+                is_active=True, is_staff=False, is_superuser=False,
+            )
+            user.set_password(DEMO_PASSWORD)
+            user.save()
+            return user, True
+
+        for t in tenants:
+            email = (t.email or "").strip().lower() or f"tenant.{t.pk}@meili-demo.local"
+            user, _ = _ensure_user(email, t.phone, t.first_name, t.last_name)
+            if not t.user_id:
+                t.user = user
+                t.save(update_fields=["user"])
+            UserRole.objects.get_or_create(user=user, role=tenant_role)
+            self.stdout.write(self.style.SUCCESS(f"  Tenant portal: {email} / {DEMO_PASSWORD}"))
+
+        for l in landlords:
+            email = (l.email or "").strip().lower() or f"landlord.{l.pk}@meili-demo.local"
+            user, _ = _ensure_user(email, l.phone, l.first_name, l.last_name)
+            if not l.user_id:
+                l.user = user
+                l.save(update_fields=["user"])
+            UserRole.objects.get_or_create(user=user, role=landlord_role)
+            self.stdout.write(self.style.SUCCESS(f"  Landlord portal: {email} / {DEMO_PASSWORD}"))

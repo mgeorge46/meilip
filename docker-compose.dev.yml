@@ -1,10 +1,28 @@
+# Meili Property — DEV stack (bare-metal app + DB; only broker + Flower in containers).
+#
+# Run the Django dev server, Celery worker, and Postgres directly on your
+# Windows / Linux dev machine. This compose only spins up the bits that are
+# tedious to run locally — RabbitMQ + Flower.
+#
+# Connectivity:
+#   * Bare-metal Django app reaches the broker on  localhost:5672
+#   * Bare-metal Celery worker  reaches the broker on  localhost:5672
+#   * Flower container reaches the broker as  rabbitmq:5672
+#
+# Start:
+#   docker compose -f docker-compose.dev.yml up -d
+# Stop:
+#   docker compose -f docker-compose.dev.yml down
+# RabbitMQ UI : http://localhost:15672  (meili / heaven2870_rmq, vhost meili)
+# Flower      : http://localhost:5555
+
 services:
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: meili_rabbitmq_dev
     ports:
-      - "5672:5672"      # AMQP broker port
-      - "15672:15672"    # Management UI (http://localhost:15672)
+      - "5672:5672"      # AMQP — bare-metal app + worker connect here
+      - "15672:15672"    # Management UI
     environment:
       RABBITMQ_DEFAULT_USER: meili
       RABBITMQ_DEFAULT_PASS: heaven2870_rmq
@@ -17,5 +35,26 @@ services:
       timeout: 10s
       retries: 5
 
+  flower:
+    image: mher/flower:2.0
+    container_name: meili_flower_dev
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "5555:5555"
+    command:
+      - "celery"
+      - "--broker=amqp://meili:heaven2870_rmq@rabbitmq:5672/meili"
+      - "flower"
+      - "--port=5555"
+    restart: unless-stopped
+
 volumes:
   rabbitmq_data:
+
+# Bare-metal commands you should run yourself while the stack is up:
+#   workon meili
+#   py manage.py runserver
+#   celery -A meili_property worker --loglevel=INFO     # in another shell
+#   celery -A meili_property beat   --loglevel=INFO     # ONLY ONE beat instance

@@ -127,23 +127,25 @@ def stat_cards(today=None) -> list[dict]:
             "label": "Outstanding AR",
             "value": int(ar_outstanding),
             "format": "ugx",
-            "trend": None,
-            "tone": "warning" if ar_outstanding > 0 else "neutral",
-            "href": None,
+            "icon": "bi-receipt",
+            "tone": "warning" if ar_outstanding > 0 else "teal",
+            "href": "/billing/invoices/?status=ISSUED",
         },
         {
             "label": "Billed this month",
             "value": int(billed),
             "format": "ugx",
-            "tone": "neutral",
-            "href": None,
+            "icon": "bi-file-earmark-text",
+            "tone": "info",
+            "href": "/billing/invoices/",
         },
         {
             "label": "Collected this month",
             "value": int(collected),
             "format": "ugx",
+            "icon": "bi-cash-coin",
             "tone": "success",
-            "href": None,
+            "href": "/billing/payments/",
         },
         {
             "label": (
@@ -153,18 +155,20 @@ def stat_cards(today=None) -> list[dict]:
             ),
             "value": (round(collection_rate, 1) if collection_rate is not None else None),
             "format": "pct",
+            "icon": "bi-graph-up-arrow",
             "tone": (
                 "neutral" if collection_rate is None
                 else "success" if collection_rate >= 80
                 else "warning" if collection_rate >= 50
                 else "danger"
             ),
-            "href": None,
+            "href": "/core/reports/collections-performance/",
         },
         {
             "label": "Occupancy",
             "value": round(occupancy_pct, 1),
             "format": "pct",
+            "icon": "bi-house-check",
             "tone": "success" if occupancy_pct >= 85 else "warning",
             "href": None,
         },
@@ -172,17 +176,19 @@ def stat_cards(today=None) -> list[dict]:
             "label": "Active tenants",
             "value": active_tenants,
             "format": "int",
-            "tone": "neutral",
-            "href": None,
+            "icon": "bi-people",
+            "tone": "purple",
+            "href": "/core/tenants/",
         },
         {
             "label": "Overdue invoices",
             "value": overdue_count,
             "format": "int",
+            "icon": "bi-exclamation-triangle",
             "tone": "danger" if overdue_count else "success",
             "sub_value": int(overdue_total),
             "sub_format": "ugx",
-            "href": None,
+            "href": "/billing/invoices/",
         },
     ]
 

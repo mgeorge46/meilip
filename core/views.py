@@ -15,22 +15,27 @@ from django.views.generic import DetailView, CreateView, UpdateView, View
 from accounts.permissions import RoleRequiredMixin, has_any_role
 
 from .forms import (
+    ActiveTenancyEditForm,
     EmployeeForm,
     EstateForm,
     HouseForm,
     LandlordForm,
     SupplierForm,
+    TenancyPauseResumeForm,
     TenantForm,
     TenantHouseForm,
     TenantMessageForm,
 )
 from .mixins import PaginatedListView
 from .models import (
+    BillingCycle,
+    Currency,
     Employee,
     Estate,
     House,
     Landlord,
     Supplier,
+    TaxType,
     Tenant,
     TenantHouse,
 )
@@ -161,6 +166,7 @@ class LandlordDetailView(RoleRequiredMixin, DetailView):
         })
 
         ctx["active_tab"] = req.GET.get("tab") or "overview"
+        ctx["today_iso"] = timezone.localdate().isoformat()
         return ctx
 
 
@@ -521,6 +527,7 @@ class TenantDetailView(RoleRequiredMixin, DetailView):
         })
 
         ctx["active_tab"] = req.GET.get("tab") or "overview"
+        ctx["today_iso"] = timezone.localdate().isoformat()
         return ctx
 
 
@@ -695,13 +702,46 @@ class TenantHouseActivateView(RoleRequiredMixin, View):
         th.status = TenantHouse.Status.ACTIVE
         if not th.move_in_date:
             th.move_in_date = timezone.localdate()
+        if not th.billing_start_date:
+            # Default billing start = move-in date, so the first invoice is
+            # generated for the right period.
+            th.billing_start_date = th.move_in_date
         th.updated_by = request.user
         th.save()
         house = th.house
         house.occupancy_status = House.Occupancy.OCCUPIED
         house.updated_by = request.user
         house.save(update_fields=["occupancy_status", "updated_by", "updated_at"])
-        messages.success(request, "Tenant activated — house marked Occupied.")
+
+        # Kick off the FIRST invoice immediately rather than waiting for the
+        # Celery beat. Forced generation creates the period invoice (with
+        # pro-rata if move-in is mid-cycle) AND posts the accrual journal.
+        # This closes the loop the user asked about: activate → invoice →
+        # tenant pays → payment allocates to AR.
+        first_invoice = None
+        try:
+            from billing.services import (
+                generate_invoice_for_tenancy, InvoiceGenerationPaused,
+            )
+            draft = generate_invoice_for_tenancy(th, user=request.user, force=True)
+            if draft:
+                first_invoice = draft.invoice
+        except Exception as exc:  # don't block activation on billing errors
+            messages.warning(
+                request,
+                f"Activated, but the first invoice could not be auto-generated: {exc}. "
+                f"Generate it manually from the tenant's invoices, or wait for the next billing cycle."
+            )
+
+        msg = "Tenant activated — house marked Occupied."
+        if first_invoice:
+            msg += f" First invoice {first_invoice.number or '(draft)'} generated."
+        if th.security_deposit:
+            msg += (
+                f" Security deposit UGX {th.security_deposit} is a separate "
+                f"liability — record it via a Payment when the tenant pays it."
+            )
+        messages.success(request, msg)
         return redirect("core:tenant-detail", pk=th.tenant_id)
 
 
@@ -735,18 +775,141 @@ class TenantHouseUpdateView(RoleRequiredMixin, UpdateView):
         return reverse("core:tenant-detail", args=[self.object.tenant_id]) + "?tab=tenancies"
 
 
+class TenantHouseActiveEditView(RoleRequiredMixin, UpdateView):
+    """Edit an ACTIVE tenancy — only the soft fields. Tenant, house and
+    billing dates are locked because changing them mid-cycle would corrupt
+    the running invoice schedule and the GL accruals already posted.
+
+    Use this for: planned move-out date, deposit corrections, swapping the
+    sales rep / account manager / collections person, etc.
+    """
+    required_roles = STAFF_ROLES
+    model = TenantHouse
+    form_class = ActiveTenancyEditForm
+    template_name = "core/tenanthouse_active_edit.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        th = self.get_object()
+        if th.status != TenantHouse.Status.ACTIVE:
+            messages.error(
+                request,
+                f"This tenancy is {th.get_status_display()}. "
+                f"Only ACTIVE tenancies use this edit form."
+            )
+            return redirect("core:tenant-detail", pk=th.tenant_id)
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        form.instance.updated_by = self.request.user
+        messages.success(self.request, "Tenancy details updated. Billing schedule unchanged.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("core:tenant-detail", args=[self.object.tenant_id]) + "?tab=tenancies"
+
+
+class TenancyPauseResumeView(RoleRequiredMixin, View):
+    """Pause / resume / stop recurring invoice generation for a tenancy.
+
+    Captures the reason (and optional effective date) into
+    `invoice_generation_note` for the audit trail.
+    """
+    required_roles = STAFF_ROLES + ("FINANCE",)
+
+    def post(self, request, pk):
+        from django.utils import timezone as _tz
+        th = get_object_or_404(TenantHouse, pk=pk)
+        form = TenancyPauseResumeForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, "A reason is required.")
+            return redirect(
+                reverse("core:tenant-detail", args=[th.tenant_id]) + "?tab=tenancies"
+            )
+        new_status = form.cleaned_data["new_status"]
+        reason = form.cleaned_data["reason"]
+        eff = form.cleaned_data.get("effective_date")
+        prev = th.get_invoice_generation_status_display()
+        th.invoice_generation_status = new_status
+        stamp = _tz.localtime().strftime("%Y-%m-%d %H:%M")
+        eff_str = f" effective {eff:%Y-%m-%d}" if eff else ""
+        note = (
+            f"[{stamp} by {request.user.email}] {prev} -> "
+            f"{th.get_invoice_generation_status_display()}{eff_str}. {reason}"
+        )
+        th.invoice_generation_note = (
+            (th.invoice_generation_note + "\n" if th.invoice_generation_note else "") + note
+        )[-1000:]  # keep within column limit
+        th.updated_by = request.user
+        th.save(update_fields=[
+            "invoice_generation_status", "invoice_generation_note",
+            "updated_by", "updated_at",
+        ])
+        messages.success(
+            request,
+            f"Billing for {th.house} is now {th.get_invoice_generation_status_display()}."
+        )
+        return redirect(
+            reverse("core:tenant-detail", args=[th.tenant_id]) + "?tab=tenancies"
+        )
+
+
 class TenantHouseExitView(RoleRequiredMixin, View):
     """Active → Exited. Marks house VACANT if no other active tenancies remain."""
     required_roles = STAFF_ROLES
 
     def post(self, request, pk):
+        from decimal import Decimal as _D
+        from billing.models import ApprovalStatus, Invoice, PaymentAllocation
+
         th = get_object_or_404(TenantHouse, pk=pk)
         if th.status != TenantHouse.Status.ACTIVE:
             messages.error(request, "Only Active tenancies can be exited.")
             return redirect("core:tenant-detail", pk=th.tenant_id)
+
+        # SPEC §20.5 enforcement: Quick Exit is allowed ONLY when there is
+        # nothing to settle. Anything outstanding (unpaid invoice or held
+        # advance) MUST go through the Exit Workflow so security deposits,
+        # damages, transfers and refunds are processed in the right order.
+        outstanding = _D("0")
+        for inv in (
+            Invoice.objects
+            .filter(tenant_house=th)
+            .exclude(status__in=[Invoice.Status.VOIDED, Invoice.Status.CANCELLED])
+            .only("id", "total")
+        ):
+            outstanding += inv.outstanding
+        from django.db.models import Sum as _Sum
+        held_advances = (
+            PaymentAllocation.objects.filter(
+                payment__tenant=th.tenant,
+                is_advance_hold=True,
+                applied_at__isnull=True,
+                payment__approval_status__in=[
+                    ApprovalStatus.APPROVED, ApprovalStatus.AUTO_APPROVED,
+                ],
+            ).aggregate(s=_Sum("amount"))["s"] or _D("0")
+        )
+        if outstanding > 0 or held_advances > 0 or (th.security_deposit or 0) > 0:
+            messages.error(
+                request,
+                f"Quick Exit blocked — this tenant has UGX {outstanding} outstanding, "
+                f"UGX {held_advances} in held advances, and UGX {th.security_deposit or 0} security deposit. "
+                f"Use the Exit Workflow so these are settled in the correct order."
+            )
+            return redirect("billing:exit-workflow", pk=th.pk)
+
         th.status = TenantHouse.Status.EXITED
         if not th.move_out_date:
             th.move_out_date = timezone.localdate()
+        # An exited tenancy must NEVER continue to bill — stop the schedule
+        # so Celery beat skips it next cycle. (Idempotent: stop = stop.)
+        th.invoice_generation_status = TenantHouse.InvoiceGenerationStatus.STOPPED
+        existing_note = th.invoice_generation_note or ""
+        stamp = timezone.localtime().strftime("%Y-%m-%d %H:%M")
+        th.invoice_generation_note = (
+            (existing_note + "\n" if existing_note else "")
+            + f"[{stamp} by {request.user.email}] Auto-stopped on tenancy exit."
+        )[-1000:]
         th.updated_by = request.user
         th.save()
         house = th.house
@@ -755,7 +918,7 @@ class TenantHouseExitView(RoleRequiredMixin, View):
             house.occupancy_status = House.Occupancy.VACANT
             house.updated_by = request.user
             house.save(update_fields=["occupancy_status", "updated_by", "updated_at"])
-        messages.success(request, "Tenancy exited.")
+        messages.success(request, "Tenancy exited and billing stopped (account had nothing to settle).")
         return redirect("core:tenant-detail", pk=th.tenant_id)
 
 
@@ -1225,4 +1388,88 @@ class CollectionsPerformanceReportView(RoleRequiredMixin, View):
             "total_collected": total_collected,
             "total_bonus": total_bonus,
             "active_brackets": CollectionsBonusBracket.objects.filter(is_active=True).order_by("min_amount"),
+        })
+
+
+# ---------------------------------------------------------------------------
+# Admin Settings (Phase G.1) — central hub
+# ---------------------------------------------------------------------------
+from django import forms as _forms_admin
+
+
+class AdminSettingsHomeView(RoleRequiredMixin, View):
+    """Single landing page that links into every config screen.
+    Grouped: Company / Accounting / Billing / People & Access /
+    Collections / Operations.
+    """
+    required_roles = ADMIN_ROLES
+
+    def get(self, request):
+        from .models import (
+            CollectionsBonusBracket, CollectionsTarget, CompanyProfile,
+        )
+        from accounting.models import Account, BankAccount
+        company = CompanyProfile.current()
+        stats = {
+            "company": company,
+            "accounts_count": Account.objects.filter(is_active=True).count(),
+            "bank_accounts_count": BankAccount.objects.filter(is_active=True).count(),
+            "currencies_count": Currency.objects.filter(is_active=True).count(),
+            "billing_cycles_count": BillingCycle.objects.filter(is_active=True).count(),
+            "tax_types_count": TaxType.objects.filter(is_active=True).count(),
+            "employees_count": Employee.objects.filter(is_active=True).count(),
+            "users_count": __import__("django.contrib.auth", fromlist=["get_user_model"]).get_user_model().objects.filter(is_active=True).count(),
+            "targets_count": CollectionsTarget.objects.count(),
+            "brackets_count": CollectionsBonusBracket.objects.filter(is_active=True).count(),
+        }
+        return render(request, "core/admin_settings_home.html", stats)
+
+
+class _CompanyProfileForm(_forms_admin.ModelForm):
+    class Meta:
+        from .models import CompanyProfile as _CP
+        model = _CP
+        fields = [
+            "name", "legal_name", "tax_id",
+            "address_line_1", "address_line_2", "city", "country",
+            "phone", "email", "website",
+            "logo", "receipt_footer",
+        ]
+        widgets = {
+            "name": _forms_admin.TextInput(attrs={"class": "form-control"}),
+            "legal_name": _forms_admin.TextInput(attrs={"class": "form-control"}),
+            "tax_id": _forms_admin.TextInput(attrs={"class": "form-control"}),
+            "address_line_1": _forms_admin.TextInput(attrs={"class": "form-control"}),
+            "address_line_2": _forms_admin.TextInput(attrs={"class": "form-control"}),
+            "city": _forms_admin.TextInput(attrs={"class": "form-control"}),
+            "country": _forms_admin.TextInput(attrs={"class": "form-control"}),
+            "phone": _forms_admin.TextInput(attrs={"class": "form-control"}),
+            "email": _forms_admin.EmailInput(attrs={"class": "form-control"}),
+            "website": _forms_admin.URLInput(attrs={"class": "form-control"}),
+            "logo": _forms_admin.ClearableFileInput(attrs={"class": "form-control", "accept": "image/*"}),
+            "receipt_footer": _forms_admin.TextInput(attrs={"class": "form-control"}),
+        }
+
+
+class CompanyProfileView(RoleRequiredMixin, View):
+    required_roles = ADMIN_ROLES
+
+    def get(self, request):
+        from .models import CompanyProfile
+        obj = CompanyProfile.current()
+        return render(request, "core/admin_company_form.html", {
+            "form": _CompanyProfileForm(instance=obj),
+            "object": obj,
+        })
+
+    def post(self, request):
+        from .models import CompanyProfile
+        obj = CompanyProfile.current()
+        form = _CompanyProfileForm(request.POST, request.FILES, instance=obj)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Company profile saved.")
+            return redirect("core:admin-settings")
+        return render(request, "core/admin_company_form.html", {
+            "form": form, "object": obj,
         })

@@ -91,7 +91,8 @@
       "Bash(/c/Users/GeorgeMuddu/Envs/meili/Scripts/python.exe manage.py showmigrations billing)",
       "Bash(python manage.py shell)",
       "Bash(C:\\\\\\\\Users\\\\\\\\GeorgeMuddu\\\\\\\\Envs\\\\\\\\meili\\\\\\\\Scripts\\\\\\\\python.exe manage.py shell)",
-      "Bash(/d/python/envs/meili/Scripts/python.exe manage.py shell)"
+      "Bash(/d/python/envs/meili/Scripts/python.exe manage.py shell)",
+      "Bash(/c/Users/GeorgeMudduEnvs/meili/Scripts/python.exe -c ' *)"
     ]
   }
 }

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Company profile · Admin · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="h3 mb-1"><i class="bi bi-building text-primary me-2"></i>Company Profile</h1>
+    <p class="muted mb-0">Used as the masthead on receipts, landlord statements, and PDF exports.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-outline-secondary" href="{% url 'core:admin-settings' %}"><i class="bi bi-arrow-left me-1"></i>Back to Settings</a>
+  </div>
+</section>
+
+<form method="post" enctype="multipart/form-data" class="card p-4" novalidate>
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Trading name <span class="text-danger">*</span></label>
+      {{ form.name }}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Legal name</label>
+      {{ form.legal_name }}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Tax ID / TIN</label>
+      {{ form.tax_id }}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Phone</label>
+      {{ form.phone }}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Email</label>
+      {{ form.email }}
+    </div>
+    <div class="col-md-12">
+      <label class="form-label">Website</label>
+      {{ form.website }}
+    </div>
+
+    <div class="col-12"><hr class="my-1"></div>
+
+    <div class="col-md-6">
+      <label class="form-label">Address line 1</label>
+      {{ form.address_line_1 }}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Address line 2</label>
+      {{ form.address_line_2 }}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">City</label>
+      {{ form.city }}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Country</label>
+      {{ form.country }}
+    </div>
+
+    <div class="col-12"><hr class="my-1"></div>
+
+    <div class="col-md-6">
+      <label class="form-label">Logo</label>
+      {{ form.logo }}
+      {% if object.logo %}
+        <div class="mt-2"><img src="{{ object.logo.url }}" alt="logo" style="max-height:80px;border:1px solid #e5e7eb;padding:6px;border-radius:6px;"></div>
+      {% endif %}
+      <div class="form-text">PNG or JPG. Appears on receipts and landlord statements.</div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Receipt footer</label>
+      {{ form.receipt_footer }}
+      <div class="form-text">Optional small print printed at the foot of every receipt PDF.</div>
+    </div>
+  </div>
+
+  {% if form.errors %}<div class="alert alert-danger mt-3">{{ form.errors }}</div>{% endif %}
+  <div class="d-flex gap-2 justify-content-end mt-3">
+    <a class="btn btn-outline-secondary" href="{% url 'core:admin-settings' %}">Cancel</a>
+    <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Save</button>
+  </div>
+</form>
+{% endblock %}

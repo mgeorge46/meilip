@@ -371,12 +371,25 @@ class Payment(MakerCheckerMixin, CoreBaseModel):
         MOBILE_MONEY = "MOBILE_MONEY", "Mobile Money"
         OTHER = "OTHER", "Other"
 
+    class Purpose(models.TextChoices):
+        PERIODIC_RENT = "PERIODIC_RENT", "Periodic rent"
+        INITIAL_DEPOSIT = "INITIAL_DEPOSIT", "Initial / move-in deposit"
+        SECURITY_DEPOSIT = "SECURITY_DEPOSIT", "Security deposit"
+        REPAIRS = "REPAIRS", "Repairs / damages"
+        UTILITY = "UTILITY", "Utility (water / electricity / etc.)"
+        ARREARS = "ARREARS", "Arrears / catch-up"
+        OTHER = "OTHER", "Other"
+
     number = models.CharField(max_length=32, unique=True, null=True, blank=True)
     tenant = models.ForeignKey(
         "core.Tenant", on_delete=models.PROTECT, related_name="payments"
     )
     amount = UGXField()
     method = models.CharField(max_length=16, choices=Method.choices)
+    purpose = models.CharField(
+        max_length=20, choices=Purpose.choices, default=Purpose.PERIODIC_RENT,
+        help_text="What the tenant is paying for. Drives reporting + GL routing for non-rent receipts.",
+    )
     bank_account = models.ForeignKey(
         "accounting.BankAccount", on_delete=models.PROTECT, related_name="payments"
     )
