@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Transfer {{ transfer.number }} · Meili Property{% endblock %}
+{% block content %}
+<section class="page-header between">
+  <div>
+    <h1>Transfer {{ transfer.number }}</h1>
+    <span class="badge {{ transfer.approval_status|lower }}">{{ transfer.get_approval_status_display }}</span>
+  </div>
+  <div><a class="btn ghost" href="{% url 'accounting:transfer-list' %}">Back</a></div>
+</section>
+
+<div class="card" style="padding:1.25rem;max-width:640px">
+  <dl class="kv">
+    <dt>Source</dt><dd>{{ transfer.source_bank.name }}</dd>
+    <dt>Destination</dt><dd>{{ transfer.destination_bank.name }}</dd>
+    <dt>Amount</dt><dd>UGX {{ transfer.amount|intcomma }}</dd>
+    <dt>Transfer date</dt><dd>{{ transfer.transfer_date }}</dd>
+    <dt>Reference</dt><dd>{{ transfer.reference|default:"—" }}</dd>
+    <dt>Memo</dt><dd>{{ transfer.memo|default:"—" }}</dd>
+    <dt>Maker</dt><dd>{{ transfer.maker.get_full_name|default:transfer.maker.email|default:"—" }}</dd>
+    <dt>Submitted</dt><dd>{{ transfer.submitted_at|date:"Y-m-d H:i"|default:"—" }}</dd>
+    {% if transfer.checker %}
+    <dt>Checker</dt><dd>{{ transfer.checker.get_full_name|default:transfer.checker.email }}</dd>
+    <dt>Approved</dt><dd>{{ transfer.approved_at|date:"Y-m-d H:i"|default:"—" }}</dd>
+    {% endif %}
+    {% if transfer.rejection_reason %}
+    <dt>Rejection reason</dt><dd>{{ transfer.rejection_reason }}</dd>
+    {% endif %}
+    {% if transfer.source_journal %}
+    <dt>Journal</dt><dd><a href="{% url 'accounting:journal-detail' transfer.source_journal_id %}">{{ transfer.source_journal.reference }}</a></dd>
+    {% endif %}
+  </dl>
+
+  {% if transfer.approval_status == 'PENDING' %}
+  <hr>
+  <div class="d-flex gap-2">
+    <form method="post" action="{% url 'accounting:transfer-approve' transfer.pk %}" class="d-inline">
+      {% csrf_token %}
+      <button class="btn btn-success" type="submit" onclick="return confirm('Approve this transfer?')">Approve</button>
+    </form>
+    <form method="post" action="{% url 'accounting:transfer-reject' transfer.pk %}" class="d-inline">
+      {% csrf_token %}
+      <input type="text" name="reason" class="form-control d-inline" style="width:300px" placeholder="Rejection reason (optional)">
+      <button class="btn btn-danger" type="submit" onclick="return confirm('Reject this transfer?')">Reject</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

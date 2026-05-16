@@ -683,6 +683,30 @@ class TenantHouse(CoreBaseModel):
     def __str__(self):
         return f"{self.tenant.full_name} @ {self.house} [{self.status}]"
 
+    @property
+    def security_deposit_received(self):
+        """True when a SecurityDeposit row exists with positive amount_held."""
+        try:
+            return self.security_deposit_record.amount_held > 0
+        except Exception:
+            return False
+
+    @property
+    def exit_executed(self):
+        """True when an ExitSettlement row exists with EXECUTED status."""
+        try:
+            return self.exit_settlement.status == "EXECUTED"
+        except Exception:
+            return False
+
+    @property
+    def exit_in_progress(self):
+        """True when an ExitSettlement row exists in DRAFT (pending approval)."""
+        try:
+            return self.exit_settlement.status == "DRAFT"
+        except Exception:
+            return False
+
 
 # ---------------------------------------------------------------------------
 # Supplier

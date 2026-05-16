@@ -11,7 +11,7 @@
   </div>
 </section>
 
-<form method="post" id="journal-form" novalidate>
+<form method="post" enctype="multipart/form-data" id="journal-form" novalidate>
   {% csrf_token %}
 
   <div class="card p-4 mb-3">
@@ -57,6 +57,7 @@
             <th class="text-end" style="width: 160px;">Debit</th>
             <th class="text-end" style="width: 160px;">Credit</th>
             <th>Description</th>
+            <th style="width: 160px;">Receipt</th>
             <th class="text-center" style="width: 70px;">Delete</th>
           </tr>
         </thead>
@@ -71,6 +72,7 @@
             <td class="text-end">{{ f.debit }}</td>
             <td class="text-end">{{ f.credit }}</td>
             <td>{{ f.description }}</td>
+            <td>{{ f.receipt_image }}</td>
             <td class="text-center">{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td>
           </tr>
         {% endfor %}

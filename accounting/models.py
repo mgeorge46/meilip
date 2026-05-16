@@ -270,6 +270,11 @@ class JournalEntryLine(models.Model):
     debit = UGXField(default=Decimal("0"))
     credit = UGXField(default=Decimal("0"))
     description = models.CharField(max_length=255, blank=True)
+    receipt_image = models.ImageField(
+        upload_to="journal_receipts/%Y/%m/",
+        null=True, blank=True,
+        help_text="Optional photo of the supporting receipt or document.",
+    )
 
     class Meta:
         ordering = ["id"]
@@ -334,3 +339,70 @@ class BankAccount(CoreBaseModel):
 
     def __str__(self):
         return f"{self.get_kind_display()} — {self.name}"
+
+
+# ---------------------------------------------------------------------------
+# Internal cash movement (inter-account transfer with maker-checker)
+# ---------------------------------------------------------------------------
+class TransferApproval(models.TextChoices):
+    PENDING = "PENDING", "Pending"
+    APPROVED = "APPROVED", "Approved"
+    REJECTED = "REJECTED", "Rejected"
+
+
+class InternalTransfer(CoreBaseModel):
+    """Cash movement between two bank accounts — always requires approval.
+
+    On approval, posts a journal entry:
+        Dr destination_bank.ledger_account
+        Cr source_bank.ledger_account
+    """
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    number = models.CharField(max_length=32, unique=True, blank=True)
+    source_bank = models.ForeignKey(
+        BankAccount, on_delete=models.PROTECT, related_name="transfers_out",
+    )
+    destination_bank = models.ForeignKey(
+        BankAccount, on_delete=models.PROTECT, related_name="transfers_in",
+    )
+    amount = UGXField()
+    transfer_date = models.DateField(default=timezone.localdate)
+    reference = models.CharField(max_length=120, blank=True)
+    memo = models.TextField(blank=True)
+    source_journal = models.ForeignKey(
+        JournalEntry, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="source_internal_transfers",
+    )
+    maker = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="+",
+    )
+    checker = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="+",
+    )
+    approval_status = models.CharField(
+        max_length=16, choices=TransferApproval.choices,
+        default=TransferApproval.PENDING,
+    )
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.number or '(unsaved)'} — {self.source_bank} → {self.destination_bank}"
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse("accounting:transfer-detail", args=[self.pk])
+
+    def clean(self):
+        super().clean()
+        if self.source_bank_id and self.destination_bank_id:
+            if self.source_bank_id == self.destination_bank_id:
+                raise ValidationError("Source and destination must be different accounts.")

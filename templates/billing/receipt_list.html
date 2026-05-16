@@ -36,7 +36,7 @@
   <table class="table table-hover align-middle mb-0">
     <thead>
       <tr>
-        <th>Number</th><th>Kind</th><th>Tenant</th><th>Payment</th>
+        <th>Number</th><th>Kind</th><th>Tenant</th><th>Payment</th><th>Invoice(s)</th>
         <th>Issued</th><th class="text-end">Amount (UGX)</th><th></th>
       </tr>
     </thead>
@@ -53,6 +53,15 @@
           {% else %}—{% endif %}
         </td>
         <td>{% if r.payment %}<code>{{ r.payment.number }}</code>{% elif r.refund %}<code>{{ r.refund.number }}</code>{% else %}—{% endif %}</td>
+        <td>
+          {% if r.payment %}
+            {% for alloc in r.payment.allocations.all %}
+              {% if alloc.invoice %}
+                <a href="{% url 'billing:invoice-detail' alloc.invoice_id %}" title="{{ alloc.invoice.number }}"><code>{{ alloc.invoice.number }}</code></a>{% if not forloop.last %}, {% endif %}
+              {% endif %}
+            {% empty %}—{% endfor %}
+          {% else %}—{% endif %}
+        </td>
         <td>{{ r.issued_at|date:"Y-m-d H:i" }}</td>
         <td class="text-end num fw-semibold">{{ r.amount }}</td>
         <td class="text-end">
@@ -61,7 +70,7 @@
         </td>
       </tr>
       {% empty %}
-      <tr class="empty-row"><td colspan="7">No receipts match your filters.</td></tr>
+      <tr class="empty-row"><td colspan="8">No receipts match your filters.</td></tr>
       {% endfor %}
     </tbody>
   </table>

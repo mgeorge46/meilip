@@ -92,7 +92,10 @@
       "Bash(python manage.py shell)",
       "Bash(C:\\\\\\\\Users\\\\\\\\GeorgeMuddu\\\\\\\\Envs\\\\\\\\meili\\\\\\\\Scripts\\\\\\\\python.exe manage.py shell)",
       "Bash(/d/python/envs/meili/Scripts/python.exe manage.py shell)",
-      "Bash(/c/Users/GeorgeMudduEnvs/meili/Scripts/python.exe -c ' *)"
+      "Bash(/c/Users/GeorgeMudduEnvs/meili/Scripts/python.exe -c ' *)",
+      "Bash(C:UsersGeorgeMudduEnvsmeiliScriptspython.exe -c ' *)",
+      "Bash(\"C:\\\\Users\\\\GeorgeMuddu\\\\Envs\\\\meili\\\\Scripts\\\\python.exe\" manage.py check --deploy)",
+      "Bash(\"C:\\\\Users\\\\GeorgeMuddu\\\\Envs\\\\meili\\\\Scripts\\\\python.exe\" manage.py test billing.tests -v1)"
     ]
   }
 }

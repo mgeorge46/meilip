@@ -173,7 +173,7 @@ class GeneralLedgerView(RoleRequiredMixin, PaginatedListView):
 def journal_entry_create(request):
     if request.method == "POST":
         form = JournalEntryForm(request.POST)
-        formset = JournalEntryLineFormSet(request.POST, prefix="lines")
+        formset = JournalEntryLineFormSet(request.POST, request.FILES, prefix="lines")
         if form.is_valid() and formset.is_valid():
             with transaction.atomic():
                 entry = form.save(commit=False)
@@ -452,3 +452,131 @@ def trial_balance(request):
         "total_credit": total_credit,
         "is_balanced": total_debit == total_credit,
     })
+
+
+# ---------------------------------------------------------------------------
+# Internal Transfers — maker-checker cash movement
+# ---------------------------------------------------------------------------
+class InternalTransferListView(RoleRequiredMixin, PaginatedListView):
+    required_roles = FINANCE_ROLES
+    model = None
+    template_name = "accounting/transfer_list.html"
+    context_object_name = "transfers"
+
+    def get_queryset(self):
+        from .models import InternalTransfer
+        qs = InternalTransfer.objects.select_related(
+            "source_bank", "destination_bank", "maker", "checker",
+        ).order_by("-created_at")
+        q = (self.request.GET.get("q") or "").strip()
+        if q:
+            qs = qs.filter(
+                Q(number__icontains=q) | Q(reference__icontains=q)
+                | Q(memo__icontains=q) | Q(source_bank__name__icontains=q)
+                | Q(destination_bank__name__icontains=q)
+            )
+        status = self.request.GET.get("status") or ""
+        if status:
+            qs = qs.filter(approval_status=status)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        from .models import TransferApproval
+        ctx = super().get_context_data(**kwargs)
+        ctx["filter_q"] = self.request.GET.get("q", "")
+        ctx["filter_status"] = self.request.GET.get("status", "")
+        ctx["status_choices"] = TransferApproval.choices
+        return ctx
+
+
+class InternalTransferCreateView(RoleRequiredMixin, CreateView):
+    required_roles = FINANCE_ROLES
+    template_name = "accounting/transfer_form.html"
+
+    def get_form_class(self):
+        from .forms import InternalTransferForm
+        return InternalTransferForm
+
+    def form_valid(self, form):
+        from django.utils import timezone as tz
+        from billing.sequences import allocate_number
+        obj = form.save(commit=False)
+        obj.maker = self.request.user
+        obj.submitted_at = tz.now()
+        obj.number = allocate_number("JE")  # reuse JE numbering for GL traceability
+        obj.created_by = self.request.user
+        obj.updated_by = self.request.user
+        obj.save()
+        messages.info(self.request, f"Transfer {obj.number} submitted for approval.")
+        return redirect("accounting:transfer-detail", pk=obj.pk)
+
+
+class InternalTransferDetailView(RoleRequiredMixin, DetailView):
+    required_roles = FINANCE_ROLES
+    template_name = "accounting/transfer_detail.html"
+    context_object_name = "transfer"
+
+    def get_queryset(self):
+        from .models import InternalTransfer
+        return InternalTransfer.objects.select_related(
+            "source_bank", "destination_bank", "maker", "checker", "source_journal",
+        )
+
+
+@transaction.atomic
+@role_required("ADMIN", "SUPER_ADMIN", "FINANCE")
+def internal_transfer_approve(request, pk):
+    from .models import InternalTransfer, TransferApproval
+    from billing.sequences import allocate_number
+    obj = get_object_or_404(InternalTransfer, pk=pk)
+    if obj.approval_status != TransferApproval.PENDING:
+        messages.warning(request, "Transfer has already been processed.")
+        return redirect("accounting:transfer-detail", pk=pk)
+    if obj.maker_id == request.user.pk:
+        messages.error(request, "Self-approval is not allowed.")
+        return redirect("accounting:transfer-detail", pk=pk)
+
+    # Post the journal entry
+    entry = JournalEntry.objects.create(
+        reference=allocate_number("JE"),
+        entry_date=obj.transfer_date,
+        memo=f"Internal transfer: {obj.source_bank.name} → {obj.destination_bank.name}. {obj.memo}",
+        source=JournalEntry.Source.MANUAL,
+        created_by=request.user,
+    )
+    JournalEntryLine.objects.create(
+        entry=entry, account=obj.destination_bank.ledger_account,
+        debit=obj.amount, credit=Decimal("0"),
+        description=f"Transfer in from {obj.source_bank.name}",
+    )
+    JournalEntryLine.objects.create(
+        entry=entry, account=obj.source_bank.ledger_account,
+        debit=Decimal("0"), credit=obj.amount,
+        description=f"Transfer out to {obj.destination_bank.name}",
+    )
+    entry.post(user=request.user)
+
+    obj.approval_status = TransferApproval.APPROVED
+    obj.checker = request.user
+    from django.utils import timezone as tz
+    obj.approved_at = tz.now()
+    obj.source_journal = entry
+    obj.save()
+    messages.success(request, f"Transfer approved — journal {entry.reference} posted.")
+    return redirect("accounting:transfer-detail", pk=pk)
+
+
+@role_required("ADMIN", "SUPER_ADMIN", "FINANCE")
+def internal_transfer_reject(request, pk):
+    from .models import InternalTransfer, TransferApproval
+    obj = get_object_or_404(InternalTransfer, pk=pk)
+    if obj.approval_status != TransferApproval.PENDING:
+        messages.warning(request, "Transfer has already been processed.")
+        return redirect("accounting:transfer-detail", pk=pk)
+    reason = (request.POST.get("reason") or "").strip()
+    obj.approval_status = TransferApproval.REJECTED
+    obj.checker = request.user
+    obj.rejection_reason = reason
+    obj.save()
+    messages.info(request, "Transfer rejected.")
+    return redirect("accounting:transfer-detail", pk=pk)

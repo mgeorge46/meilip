@@ -863,46 +863,58 @@ class TenantStatementView(RoleRequiredMixin, DetailView):
         return ctx
 
 
-class LandlordStatementView(RoleRequiredMixin, DetailView):
-    """Landlord statement — never shows held-advance balances (fiduciary)."""
+class LandlordStatementView(RoleRequiredMixin, View):
+    """Landlord statement — period-filtered, grouped by estate, with defaulters
+    and good payers.  Never shows held-advance balances (fiduciary)."""
     required_roles = FINANCE_ROLES
-    template_name = "billing/landlord_statement.html"
-    context_object_name = "landlord"
 
-    def get_object(self):
+    def _parse_dates(self, request):
+        from datetime import date, timedelta
+        today = timezone.localdate()
+        try:
+            ps = date.fromisoformat(request.GET.get("period_start", ""))
+        except (ValueError, TypeError):
+            ps = today.replace(day=1)
+        try:
+            pe = date.fromisoformat(request.GET.get("period_end", ""))
+        except (ValueError, TypeError):
+            # Default to 3 months from start
+            y = ps.year + (ps.month + 2) // 12
+            m = (ps.month + 2) % 12 or 12
+            from calendar import monthrange
+            pe = date(y, m, monthrange(y, m)[1])
+        # Cap at 3 months
+        from portal.services import _months_between
+        if _months_between(ps, pe) + 1 > 3:
+            y = ps.year + (ps.month + 2) // 12
+            m = (ps.month + 2) % 12 or 12
+            from calendar import monthrange
+            pe = date(y, m, monthrange(y, m)[1])
+        return ps, pe
+
+    def get(self, request, pk):
         from core.models import Landlord
-        return get_object_or_404(Landlord, pk=self.kwargs["pk"])
+        from portal.services import build_statement_context, render_statement_pdf
+        landlord = get_object_or_404(Landlord, pk=pk)
+        ps, pe = self._parse_dates(request)
 
-    def get(self, request, *args, **kwargs):
-        self.object = self.get_object()
         if request.GET.get("format") == "pdf":
-            from .pdf import landlord_statement_pdf
-            ctx = self.get_context_data(object=self.object)
-            return landlord_statement_pdf(self.object, ctx["invoices"], ctx["houses"])
-        return super().get(request, *args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        from core.models import House
-        ctx = super().get_context_data(**kwargs)
-        # Houses covered by this landlord — either direct override (House.landlord)
-        # or via their estates. Use a single Q-filter, NOT queryset OR across models.
-        ctx["houses"] = (
-            House.objects.filter(
-                models.Q(landlord=self.object)
-                | models.Q(estate__landlord=self.object)
+            ctx = build_statement_context(landlord, ps, pe)
+            pdf_bytes = render_statement_pdf(ctx)
+            from django.http import HttpResponse
+            resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+            resp["Content-Disposition"] = (
+                f'inline; filename="statement-{landlord.pk}-{ps:%Y%m}-{pe:%Y%m}.pdf"'
             )
-            .select_related("estate")
-            .distinct()
-            .order_by("estate__name", "house_number")
-        )
-        invoices = Invoice.objects.filter(
-            models.Q(tenant_house__house__estate__landlord=self.object)
-            | models.Q(tenant_house__house__landlord=self.object)
-        ).distinct()
-        ctx["invoices"] = invoices.exclude(
-            status__in=[Invoice.Status.VOIDED, Invoice.Status.CANCELLED]
-        ).order_by("-issue_date")[:100]
-        return ctx
+            return resp
+
+        stmt_ctx = build_statement_context(landlord, ps, pe)
+        return render(request, "billing/landlord_statement.html", {
+            "landlord": landlord,
+            "stmt": stmt_ctx,
+            "period_start": ps,
+            "period_end": pe,
+        })
 
 
 # ---------------------------------------------------------------------------
@@ -936,6 +948,13 @@ class ExitWorkflowView(RoleRequiredMixin, View):
     @transaction.atomic
     def post(self, request, pk):
         th = get_object_or_404(TenantHouse, pk=pk)
+
+        # Prevent double-submit — once executed, the exit is final.
+        existing = ExitSettlement.objects.filter(tenant_house=th).first()
+        if existing and existing.status == ExitSettlement.Status.EXECUTED:
+            messages.warning(request, "Exit settlement has already been executed for this tenancy.")
+            return redirect("core:tenant-detail", pk=th.tenant_id)
+
         action = request.POST.get("action", "compute")
         damages = _parse_damages(request.POST)
         transfer_ids = [
@@ -1233,6 +1252,7 @@ class ReceiptListView(RoleRequiredMixin, PaginatedListView):
                 "payment", "payment__tenant", "payment__bank_account",
                 "refund", "refund__tenant",
             )
+            .prefetch_related("payment__allocations__invoice")
             .order_by("-issued_at", "-id")
         )
         q = (self.request.GET.get("q") or "").strip()
@@ -1514,6 +1534,12 @@ class RecordSecurityDepositView(RoleRequiredMixin, View):
         from decimal import Decimal as _D
 
         th = get_object_or_404(TenantHouse, pk=pk)
+
+        # Prevent double-execution — deposit is a once-off event
+        if th.security_deposit_received:
+            messages.warning(request, "Security deposit has already been recorded for this tenancy.")
+            return redirect("core:tenant-detail", pk=th.tenant_id)
+
         form = SecurityDepositReceiveForm(request.POST)
         if not form.is_valid():
             from django.shortcuts import render

@@ -149,7 +149,11 @@
                 </form>
               {% elif th.status == 'ACTIVE' %}
                 <a class="btn btn-sm btn-outline-secondary" href="{% url 'core:tenancy-edit-active' th.pk %}" title="Edit non-billing fields"><i class="bi bi-pencil"></i></a>
+                {% if th.security_deposit_received %}
+                <button class="btn btn-sm btn-outline-secondary" disabled title="Security deposit already recorded (UGX {{ th.security_deposit|default:'0' }})"><i class="bi bi-shield-check"></i> Deposit held</button>
+                {% else %}
                 <a class="btn btn-sm btn-outline-info" href="{% url 'billing:security-deposit-receive' th.pk %}" title="Record security deposit (liability)"><i class="bi bi-shield-check"></i></a>
+                {% endif %}
                 {% if th.invoice_generation_status == 'ACTIVE' %}
                 <button class="btn btn-sm btn-outline-warning" type="button"
                         data-bs-toggle="collapse" data-bs-target="#pause-{{ th.pk }}" title="Pause billing">
@@ -166,11 +170,19 @@
                   <i class="bi bi-stop-fill me-1"></i>Stopped
                 </button>
                 {% endif %}
+                {% if th.exit_executed %}
+                <button class="btn btn-sm btn-outline-secondary" disabled title="Exit already executed"><i class="bi bi-check-circle me-1"></i>Exit done</button>
+                {% elif th.exit_in_progress %}
+                <a class="btn btn-sm btn-warning" href="{% url 'billing:exit-workflow' th.pk %}"><i class="bi bi-hourglass-split me-1"></i>Exit pending</a>
+                {% else %}
                 <a class="btn btn-sm btn-outline-primary" href="{% url 'billing:exit-workflow' th.pk %}">Exit workflow</a>
+                {% endif %}
+                {% if not th.exit_executed %}
                 <form method="post" action="{% url 'core:tenancy-exit' th.pk %}" class="d-inline"
                       onsubmit="return confirm('Mark this tenancy as exited WITHOUT settlement?');">
                   {% csrf_token %}<button class="btn btn-sm btn-outline-secondary" type="submit">Quick exit</button>
                 </form>
+                {% endif %}
               {% endif %}
             </td>
           </tr>

@@ -75,8 +75,8 @@ def _resync_sequence(seq):
     if not pair:
         return
     Model, field = pair
-    pattern = f"{seq.prefix}-{seq.year}{seq.month:02d}-%"
-    qs = Model._default_manager.filter(**{f"{field}__like": pattern}).values_list(field, flat=True)
+    prefix_str = f"{seq.prefix}-{seq.year}{seq.month:02d}-"
+    qs = Model._default_manager.filter(**{f"{field}__startswith": prefix_str}).values_list(field, flat=True)
     max_n = 0
     for ref in qs:
         if not ref:

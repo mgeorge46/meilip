@@ -11,7 +11,7 @@
 {% if entry.memo %}<p><em>{{ entry.memo }}</em></p>{% endif %}
 
 <table>
-  <thead><tr><th>Account</th><th>Description</th><th class="right">Debit</th><th class="right">Credit</th></tr></thead>
+  <thead><tr><th>Account</th><th>Description</th><th class="right">Debit</th><th class="right">Credit</th><th>Receipt</th></tr></thead>
   <tbody>
     {% for line in lines %}
     <tr>
@@ -19,6 +19,7 @@
       <td>{{ line.description }}</td>
       <td class="right">{% if line.debit %}{{ line.debit }}{% endif %}</td>
       <td class="right">{% if line.credit %}{{ line.credit }}{% endif %}</td>
+      <td>{% if line.receipt_image %}<a href="{{ line.receipt_image.url }}" target="_blank"><img src="{{ line.receipt_image.url }}" alt="Receipt" style="max-width:48px;max-height:48px;border-radius:3px;"></a>{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -26,6 +27,7 @@
     <tr><th colspan="2" class="right">Totals:</th>
       <th class="right">{{ debit_total }}</th>
       <th class="right">{{ credit_total }}</th>
+      <th></th>
     </tr>
   </tfoot>
 </table>

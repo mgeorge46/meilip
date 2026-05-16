@@ -126,8 +126,8 @@
   </div>
 </div>
 
-{{ trend_json|json_script:"trend-data" }}
-{{ ageing_json|json_script:"ageing-data" }}
+{{ trend|json_script:"trend-data" }}
+{{ ageing|json_script:"ageing-data" }}
 {{ notif|json_script:"notif-data" }}
 {% endblock %}
 

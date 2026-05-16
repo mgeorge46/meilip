@@ -22,4 +22,11 @@ urlpatterns = [
     path("bank-accounts/<int:pk>/", views.BankAccountDetailView.as_view(), name="bankaccount-detail"),
     path("bank-accounts/<int:pk>/edit/", views.BankAccountUpdateView.as_view(), name="bankaccount-update"),
     path("bank-accounts/<int:pk>/delete/", views.BankAccountDeleteView.as_view(), name="bankaccount-delete"),
+
+    # Internal transfers
+    path("transfers/", views.InternalTransferListView.as_view(), name="transfer-list"),
+    path("transfers/new/", views.InternalTransferCreateView.as_view(), name="transfer-create"),
+    path("transfers/<int:pk>/", views.InternalTransferDetailView.as_view(), name="transfer-detail"),
+    path("transfers/<int:pk>/approve/", views.internal_transfer_approve, name="transfer-approve"),
+    path("transfers/<int:pk>/reject/", views.internal_transfer_reject, name="transfer-reject"),
 ]

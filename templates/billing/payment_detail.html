@@ -17,6 +17,10 @@
     <dt>Maker</dt><dd>{{ payment.maker }}</dd>
     <dt>Checker</dt><dd>{{ payment.checker|default:"—" }}</dd>
     {% if payment.rejection_reason %}<dt>Rejection reason</dt><dd>{{ payment.rejection_reason }}</dd>{% endif %}
+    {% if payment.receipt_image %}
+    <dt>Receipt image</dt>
+    <dd><a href="{{ payment.receipt_image.url }}" target="_blank"><img src="{{ payment.receipt_image.url }}" alt="Receipt" style="max-width:240px;max-height:240px;border:1px solid var(--border);border-radius:4px;"></a></dd>
+    {% endif %}
   </dl>
 </div>
 

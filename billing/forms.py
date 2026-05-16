@@ -47,7 +47,7 @@ class ManualInvoiceForm(forms.ModelForm):
 class PaymentForm(forms.ModelForm):
     class Meta:
         model = Payment
-        fields = ["tenant", "purpose", "amount", "method", "bank_account", "reference_number", "received_at"]
+        fields = ["tenant", "purpose", "amount", "method", "bank_account", "reference_number", "received_at", "receipt_image"]
         widgets = {
             "received_at": forms.DateTimeInput(attrs={"type": "datetime-local", "class": "form-control"}),
             "purpose": forms.Select(attrs={"class": "form-select"}),
@@ -56,6 +56,7 @@ class PaymentForm(forms.ModelForm):
             "bank_account": forms.Select(attrs={"class": "form-select"}),
             "amount": forms.NumberInput(attrs={"class": "form-control text-end num", "inputmode": "numeric"}),
             "reference_number": forms.TextInput(attrs={"class": "form-control"}),
+            "receipt_image": forms.ClearableFileInput(attrs={"class": "form-control", "accept": "image/*"}),
         }
 
 

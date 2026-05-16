@@ -1,37 +1,127 @@
 {% extends "base.html" %}
-{% block title %}Landlord Statement · {{ landlord.full_name }}{% endblock %}
+{% load humanize %}
+{% block title %}Statement · {{ landlord.full_name }}{% endblock %}
 {% block content %}
 <section class="page-header between">
   <div>
     <h1>Landlord Statement</h1>
-    <p class="muted">{{ landlord.full_name }} · Advance balances are fiduciary and not shown to the landlord.</p>
+    <p class="muted">{{ landlord.full_name }} · {{ period_start|date:"M Y" }} to {{ period_end|date:"M Y" }}</p>
   </div>
   <div class="actions d-flex gap-2">
     <a class="btn btn-outline-secondary" href="{% url 'billing:landlord-statement-index' %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
-    <a class="btn btn-primary" href="?format=pdf" target="_blank"><i class="bi bi-file-earmark-pdf me-1"></i>Download PDF</a>
+    <a class="btn btn-primary" href="?period_start={{ period_start|date:'Y-m-d' }}&period_end={{ period_end|date:'Y-m-d' }}&format=pdf" target="_blank"><i class="bi bi-file-earmark-pdf me-1"></i>Download PDF</a>
   </div>
 </section>
-<div class="card">
-  <table class="data">
-    <thead><tr>
-      <th>Invoice</th><th>Tenant</th><th>House</th><th>Period</th>
-      <th class="num">Total</th><th class="num">Outstanding</th><th>Status</th>
-    </tr></thead>
+
+<form method="get" class="card filter-bar mb-3">
+  <div class="filter-grid">
+    <div>
+      <label>Period start</label>
+      <input type="date" name="period_start" value="{{ period_start|date:'Y-m-d' }}">
+    </div>
+    <div>
+      <label>Period end</label>
+      <input type="date" name="period_end" value="{{ period_end|date:'Y-m-d' }}">
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn primary">Apply</button>
+    </div>
+  </div>
+  <p class="muted" style="font-size:.85em;margin:.5rem 0 0">Max span: 3 months. Advance balances are fiduciary and not shown.</p>
+</form>
+
+{# ---------- Houses table grouped by estate ---------- #}
+<div class="card mb-3">
+  <h2 class="h6 text-uppercase text-muted p-3 mb-0" style="letter-spacing:.04em;">Houses</h2>
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr><th>#</th><th>Tenant</th><th class="text-end">Cost</th><th class="text-end">Paid</th><th class="text-end">Balance</th><th>Period</th></tr>
+    </thead>
     <tbody>
-      {% for inv in invoices %}
+      {% regroup stmt.rows by estate as estate_groups %}
+      {% for group in estate_groups %}
+        {% if group.grouper %}
+        <tr class="table-primary fw-bold"><td colspan="6">{{ group.grouper }}</td></tr>
+        {% endif %}
+        {% for r in group.list %}
         <tr>
-          <td><a href="{% url 'billing:invoice-detail' inv.pk %}">{{ inv.number|default:inv.pk }}</a></td>
-          <td>{{ inv.tenant_house.tenant.full_name }}</td>
-          <td>{{ inv.tenant_house.house }}</td>
-          <td>{{ inv.period_from }} → {{ inv.period_to }}</td>
-          <td class="num">{{ inv.total }}</td>
-          <td class="num">{{ inv.outstanding }}</td>
-          <td><span class="badge status-{{ inv.status|lower }}">{{ inv.get_status_display }}</span></td>
+          <td>{{ r.unit }}</td>
+          <td>{{ r.tenant }}</td>
+          <td class="text-end num">{{ r.cost|intcomma }}</td>
+          <td class="text-end num">{{ r.amount_paid|intcomma }}</td>
+          <td class="text-end num {% if r.balance > 0 %}text-danger{% endif %}">{{ r.balance|intcomma }}</td>
+          <td>{{ r.period }}</td>
         </tr>
-      {% empty %}
-        <tr><td colspan="7" class="muted">No invoices.</td></tr>
+        {% endfor %}
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="fw-bold table-light">
+        <td colspan="2">Total</td>
+        <td class="text-end num">{{ stmt.amount_paid_for_period|add:stmt.closing_balance|intcomma }}</td>
+        <td class="text-end num">{{ stmt.amount_paid_for_period|intcomma }}</td>
+        <td class="text-end num">{{ stmt.closing_balance|intcomma }}</td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+{# ---------- Defaulters ---------- #}
+{% if stmt.defaulters %}
+<div class="card mb-3">
+  <h2 class="h6 text-uppercase text-muted p-3 mb-0" style="letter-spacing:.04em;">Defaulters (prior periods)</h2>
+  <table class="table table-hover align-middle mb-0">
+    <thead><tr><th>#</th><th>Tenant</th><th class="text-end">Arrears</th><th class="text-end">Paid in window</th><th class="text-end">Balance</th><th>Period</th></tr></thead>
+    <tbody>
+      {% for d in stmt.defaulters %}
+      <tr>
+        <td>{{ d.unit }}</td>
+        <td>{{ d.tenant }}</td>
+        <td class="text-end num">{{ d.arrears|intcomma }}</td>
+        <td class="text-end num">{{ d.amount_paid|intcomma }}</td>
+        <td class="text-end num text-danger">{{ d.balance|intcomma }}</td>
+        <td>{{ d.period }}</td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
+</div>
+{% endif %}
+
+{# ---------- Summary ---------- #}
+<div class="row g-3 mb-3">
+  <div class="col-lg-6">
+    <div class="card p-3">
+      <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.04em;">Summary</h2>
+      <table class="table mb-0">
+        <tr><td>Amount paid for period</td><td class="text-end fw-semibold">{{ stmt.amount_paid_for_period|intcomma }}</td></tr>
+        <tr><td>Arrears cleared by defaulters</td><td class="text-end">{{ stmt.arrears_cleared_by_defaulters|intcomma }}</td></tr>
+        <tr class="table-light"><td class="fw-bold">Total collection</td><td class="text-end fw-bold">{{ stmt.total_collection|intcomma }}</td></tr>
+        <tr><td>Commission</td><td class="text-end">({{ stmt.commission|intcomma }})</td></tr>
+        <tr class="table-light"><td class="fw-bold">Landlord NET</td><td class="text-end fw-bold">{{ stmt.landlord_net|intcomma }}</td></tr>
+        <tr><td>Payments to landlord</td><td class="text-end">({{ stmt.payments_to_landlord|intcomma }})</td></tr>
+        <tr class="table-info"><td class="fw-bold">Closing balance</td><td class="text-end fw-bold">{{ stmt.closing_balance|intcomma }}</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card p-3">
+      <h2 class="h6 text-uppercase text-muted mb-3" style="letter-spacing:.04em;">Landlord Payments</h2>
+      <table class="table mb-0">
+        <thead><tr><th>Date</th><th class="text-end">Amount</th></tr></thead>
+        <tbody>
+          {% for p in stmt.landlord_payments %}
+          <tr><td>{{ p.date|date:"d/m/Y" }}</td><td class="text-end num">{{ p.amount|intcomma }}</td></tr>
+          {% empty %}
+          <tr><td colspan="2" class="muted">No payments during this period.</td></tr>
+          {% endfor %}
+        </tbody>
+        {% if stmt.landlord_payments %}
+        <tfoot><tr class="fw-bold table-light"><td>Total</td><td class="text-end num">{{ stmt.payments_to_landlord|intcomma }}</td></tr></tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
 </div>
 {% endblock %}

@@ -43,7 +43,7 @@ urlpatterns = [
     # Landlord statements picker
     path("landlord-statements/", views.LandlordStatementIndexView.as_view(), name="landlord-statement-index"),
 
-    # Exit workflow (SPEC §20.5)
+    # Exit workflow (SPEC 20.5)
     path("tenancies/<int:pk>/exit/", views.ExitWorkflowView.as_view(), name="exit-workflow"),
 
     # Reports

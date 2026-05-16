@@ -3,15 +3,15 @@
   <div class="sidebar-brand">
     <img src="{% static 'img/meil.jpg' %}" alt="Meili">
     <span class="brand-name">Meili</span>
-    <button id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle sidebar">☰</button>
+    <button id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle sidebar">&#9776;</button>
   </div>
 
   <ul class="sidebar-menu">
-    <li><a href="{% url 'dashboard:home' %}" data-label="Dashboard"><span class="menu-icon">◉</span><span class="menu-label">Dashboard</span></a></li>
+    <li><a href="{% url 'dashboard:home' %}" data-label="Dashboard"><span class="menu-icon">&#9673;</span><span class="menu-label">Dashboard</span></a></li>
 
     <li class="sidebar-section-title">Property Management</li>
     <li data-section="property">
-      <button class="menu-toggle" data-label="Property"><span class="menu-icon">▤</span><span class="menu-label">Property</span><span class="menu-chevron">›</span></button>
+      <button class="menu-toggle" data-label="Property"><span class="menu-icon">&#9636;</span><span class="menu-label">Property</span><span class="menu-chevron">&#8250;</span></button>
       <ul class="submenu">
         <li><a href="{% url 'core:estate-list' %}">Estates</a></li>
         <li><a href="{% url 'core:house-list' %}">Houses</a></li>
@@ -20,7 +20,7 @@
 
     <li class="sidebar-section-title">People</li>
     <li data-section="people">
-      <button class="menu-toggle" data-label="People"><span class="menu-icon">☺</span><span class="menu-label">People</span><span class="menu-chevron">›</span></button>
+      <button class="menu-toggle" data-label="People"><span class="menu-icon">&#9786;</span><span class="menu-label">People</span><span class="menu-chevron">&#8250;</span></button>
       <ul class="submenu">
         <li><a href="{% url 'core:tenant-list' %}">Tenants</a></li>
         <li><a href="{% url 'core:landlord-list' %}">Landlords</a></li>
@@ -29,37 +29,47 @@
       </ul>
     </li>
 
+    {% if request.user.is_superuser or 'ADMIN' in user_role_names or 'FINANCE' in user_role_names or 'ACCOUNT_MANAGER' in user_role_names or 'COLLECTIONS' in user_role_names %}
     <li class="sidebar-section-title">Billing</li>
     <li data-section="billing">
-      <button class="menu-toggle" data-label="Billing"><span class="menu-icon">$</span><span class="menu-label">Billing</span><span class="menu-chevron">›</span></button>
+      <button class="menu-toggle" data-label="Billing"><span class="menu-icon">$</span><span class="menu-label">Billing</span><span class="menu-chevron">&#8250;</span></button>
       <ul class="submenu">
         <li><a href="{% url 'billing:invoice-list' %}">Invoices</a></li>
         <li><a href="{% url 'billing:payment-list' %}">Payments</a></li>
         <li><a href="{% url 'billing:receipt-list' %}">Receipts</a></li>
         <li><a href="{% url 'billing:invoice-schedule-list' %}">Invoice Schedules</a></li>
+        {% if request.user.is_superuser or 'ADMIN' in user_role_names or 'FINANCE' in user_role_names or 'ACCOUNT_MANAGER' in user_role_names %}
         <li><a href="{% url 'billing:approvals' %}">Approvals Queue</a></li>
+        {% endif %}
         <li><a href="{% url 'billing:adhoc-list' %}">Ad-hoc Charges</a></li>
+        {% if request.user.is_superuser or 'ADMIN' in user_role_names or 'FINANCE' in user_role_names or 'ACCOUNT_MANAGER' in user_role_names %}
         <li><a href="{% url 'billing:landlord-payout-list' %}">Landlord Payouts</a></li>
         <li><a href="{% url 'billing:supplier-payment-list' %}">Supplier Payments</a></li>
+        {% endif %}
         <li><a href="{% url 'billing:expense-claim-list' %}">Expense Claims</a></li>
       </ul>
     </li>
+    {% endif %}
 
+    {% if request.user.is_superuser or 'ADMIN' in user_role_names or 'FINANCE' in user_role_names %}
     <li class="sidebar-section-title">Accounting</li>
     <li data-section="accounting">
-      <button class="menu-toggle" data-label="Accounting"><span class="menu-icon">⌘</span><span class="menu-label">Accounting</span><span class="menu-chevron">›</span></button>
+      <button class="menu-toggle" data-label="Accounting"><span class="menu-icon">&#8984;</span><span class="menu-label">Accounting</span><span class="menu-chevron">&#8250;</span></button>
       <ul class="submenu">
         <li><a href="{% url 'accounting:account-list' %}">Chart of Accounts</a></li>
         <li><a href="{% url 'accounting:journal-create' %}">New Journal Entry</a></li>
         <li><a href="{% url 'accounting:general-ledger' %}">General Ledger</a></li>
         <li><a href="{% url 'accounting:trial-balance' %}">Trial Balance</a></li>
         <li><a href="{% url 'accounting:bankaccount-list' %}">Bank Accounts</a></li>
+        <li><a href="{% url 'accounting:transfer-list' %}">Internal Transfers</a></li>
       </ul>
     </li>
+    {% endif %}
 
+    {% if request.user.is_superuser or 'ADMIN' in user_role_names or 'FINANCE' in user_role_names or 'ACCOUNT_MANAGER' in user_role_names %}
     <li class="sidebar-section-title">Reports</li>
     <li data-section="reports">
-      <button class="menu-toggle" data-label="Reports"><span class="menu-icon">◧</span><span class="menu-label">Reports</span><span class="menu-chevron">›</span></button>
+      <button class="menu-toggle" data-label="Reports"><span class="menu-icon">&#9639;</span><span class="menu-label">Reports</span><span class="menu-chevron">&#8250;</span></button>
       <ul class="submenu">
         <li><a href="{% url 'accounting:commission-report' %}">Commission Income</a></li>
         <li><a href="{% url 'billing:report-revenue' %}">Revenue Summary</a></li>
@@ -77,16 +87,17 @@
         <li><a href="{% url 'billing:landlord-statement-index' %}">Landlord Statements</a></li>
       </ul>
     </li>
+    {% endif %}
 
     <li class="sidebar-section-title">Operations</li>
-    <li><a href="{% url 'notifications:delivery-list' %}" data-label="Notifications"><span class="menu-icon">✉</span><span class="menu-label">Notifications</span></a></li>
+    <li><a href="{% url 'notifications:delivery-list' %}" data-label="Notifications"><span class="menu-icon">&#9993;</span><span class="menu-label">Notifications</span></a></li>
 
     {% if request.user.is_superuser or 'ADMIN' in user_role_names %}
     <li class="sidebar-section-title">Admin</li>
-    <li><a href="{% url 'core:admin-settings' %}" data-label="Admin Settings"><span class="menu-icon">⚙</span><span class="menu-label">Admin Settings</span></a></li>
-    <li><a href="{% url 'accounts:user-list' %}" data-label="Users"><span class="menu-icon">◐</span><span class="menu-label">Users</span></a></li>
-    <li><a href="{% url 'accounts:audit-log' %}" data-label="Audit Log"><span class="menu-icon">◈</span><span class="menu-label">Audit Log</span></a></li>
-    <li><a href="{% url 'api:docs' %}" data-label="API Docs"><span class="menu-icon">⚡</span><span class="menu-label">API Docs</span></a></li>
+    <li><a href="{% url 'core:admin-settings' %}" data-label="Admin Settings"><span class="menu-icon">&#9881;</span><span class="menu-label">Admin Settings</span></a></li>
+    <li><a href="{% url 'accounts:user-list' %}" data-label="Users"><span class="menu-icon">&#9680;</span><span class="menu-label">Users</span></a></li>
+    <li><a href="{% url 'accounts:audit-log' %}" data-label="Audit Log"><span class="menu-icon">&#9672;</span><span class="menu-label">Audit Log</span></a></li>
+    <li><a href="{% url 'api:docs' %}" data-label="API Docs"><span class="menu-icon">&#9889;</span><span class="menu-label">API Docs</span></a></li>
     {% endif %}
   </ul>
 </aside>

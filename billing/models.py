@@ -396,6 +396,12 @@ class Payment(MakerCheckerMixin, CoreBaseModel):
     reference_number = models.CharField(max_length=64, blank=True)
     received_at = models.DateTimeField(default=timezone.now)
 
+    receipt_image = models.ImageField(
+        upload_to="payment_receipts/%Y/%m/",
+        null=True, blank=True,
+        help_text="Optional photo of the physical receipt or proof of payment.",
+    )
+
     source_journal = models.ForeignKey(
         "accounting.JournalEntry", on_delete=models.PROTECT, null=True, blank=True,
         related_name="source_payments",

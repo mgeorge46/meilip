@@ -1,7 +1,7 @@
 from django import forms
 from django.forms import inlineformset_factory
 
-from .models import Account, BankAccount, JournalEntry, JournalEntryLine
+from .models import Account, BankAccount, InternalTransfer, JournalEntry, JournalEntryLine
 
 
 class AccountForm(forms.ModelForm):
@@ -60,7 +60,7 @@ class JournalEntryForm(forms.ModelForm):
 class JournalEntryLineForm(forms.ModelForm):
     class Meta:
         model = JournalEntryLine
-        fields = ["account", "debit", "credit", "description"]
+        fields = ["account", "debit", "credit", "description", "receipt_image"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -68,6 +68,7 @@ class JournalEntryLineForm(forms.ModelForm):
         self.fields["debit"].widget.attrs.update({"class": "form-control text-end num", "placeholder": "0", "inputmode": "numeric"})
         self.fields["credit"].widget.attrs.update({"class": "form-control text-end num", "placeholder": "0", "inputmode": "numeric"})
         self.fields["description"].widget.attrs.update({"class": "form-control", "placeholder": "Optional line note"})
+        self.fields["receipt_image"].widget.attrs.update({"class": "form-control", "accept": "image/*"})
 
 
 JournalEntryLineFormSet = inlineformset_factory(
@@ -79,3 +80,19 @@ JournalEntryLineFormSet = inlineformset_factory(
     validate_min=True,
     can_delete=True,
 )
+
+
+class InternalTransferForm(forms.ModelForm):
+    class Meta:
+        model = InternalTransfer
+        fields = ["source_bank", "destination_bank", "amount", "transfer_date", "reference", "memo"]
+        widgets = {
+            "transfer_date": forms.DateInput(attrs={"type": "date"}),
+            "memo": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        active = BankAccount.objects.filter(is_active=True).order_by("name")
+        self.fields["source_bank"].queryset = active
+        self.fields["destination_bank"].queryset = active
