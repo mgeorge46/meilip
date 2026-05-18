@@ -5,7 +5,7 @@ layer stay dumb. All money is in UGX.
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, time
 from decimal import Decimal
 
 from django.db.models import Count, Q, Sum
@@ -23,6 +23,15 @@ def _add_months(d: date, n: int) -> date:
     y = d.year + (d.month - 1 + n) // 12
     m = (d.month - 1 + n) % 12 + 1
     return date(y, m, 1)
+
+
+def _aware_dt(d: date) -> datetime:
+    """Convert a date to a timezone-aware datetime at midnight (Africa/Kampala).
+
+    Prevents naive-datetime warnings when filtering DateTimeField columns
+    with date objects.
+    """
+    return timezone.make_aware(datetime.combine(d, time.min))
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +70,8 @@ def stat_cards(today=None) -> list[dict]:
     from billing.models import PaymentAllocation
     collected = PaymentAllocation.objects.filter(
         is_advance_hold=False,
-        applied_at__gte=month_start, applied_at__lt=_add_months(month_start, 1),
+        applied_at__gte=_aware_dt(month_start),
+        applied_at__lt=_aware_dt(_add_months(month_start, 1)),
     ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
 
     # Collection rate. Cascade through windows so the rate is informative
@@ -76,7 +86,7 @@ def stat_cards(today=None) -> list[dict]:
             ],
         ).aggregate(s=Sum("total"))["s"] or Decimal("0")
         c = PaymentAllocation.objects.filter(
-            is_advance_hold=False, applied_at__gte=ws,
+            is_advance_hold=False, applied_at__gte=_aware_dt(ws),
         ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
         return (float(c * 100 / b), b) if b > 0 else (None, b)
 
@@ -242,7 +252,8 @@ def revenue_trend(today=None) -> list[dict]:
             ],
         ).aggregate(s=Sum("total"))["s"] or Decimal("0")
         collected = PaymentAllocation.objects.filter(
-            is_advance_hold=False, applied_at__gte=ms, applied_at__lt=me,
+            is_advance_hold=False,
+            applied_at__gte=_aware_dt(ms), applied_at__lt=_aware_dt(me),
         ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
         months.append({
             "label": ms.strftime("%b %y"),
@@ -260,7 +271,7 @@ def notification_health(today=None) -> dict:
 
     today = today or _today()
     window_start = today - timedelta(days=7)
-    qs = NotificationDelivery.objects.filter(created_at__gte=window_start)
+    qs = NotificationDelivery.objects.filter(created_at__gte=_aware_dt(window_start))
     total = qs.count()
     sent = qs.filter(status=DeliveryStatus.SENT).count()
     failed = qs.filter(status=DeliveryStatus.FAILED).count()

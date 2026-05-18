@@ -95,7 +95,9 @@
       "Bash(/c/Users/GeorgeMudduEnvs/meili/Scripts/python.exe -c ' *)",
       "Bash(C:UsersGeorgeMudduEnvsmeiliScriptspython.exe -c ' *)",
       "Bash(\"C:\\\\Users\\\\GeorgeMuddu\\\\Envs\\\\meili\\\\Scripts\\\\python.exe\" manage.py check --deploy)",
-      "Bash(\"C:\\\\Users\\\\GeorgeMuddu\\\\Envs\\\\meili\\\\Scripts\\\\python.exe\" manage.py test billing.tests -v1)"
+      "Bash(\"C:\\\\Users\\\\GeorgeMuddu\\\\Envs\\\\meili\\\\Scripts\\\\python.exe\" manage.py test billing.tests -v1)",
+      "Bash(\"C:\\\\Users\\\\GeorgeMuddu\\\\Envs\\\\meili\\\\Scripts\\\\python.exe\" manage.py test billing.tests dashboard.tests accounting.tests -v1)",
+      "Bash(\"C:\\\\Users\\\\GeorgeMuddu\\\\Envs\\\\meili\\\\Scripts\\\\python.exe\" manage.py test billing.tests dashboard.tests accounting.tests core.tests accounts.tests -v1)"
     ]
   }
 }

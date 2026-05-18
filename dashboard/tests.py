@@ -117,21 +117,26 @@ class TenancyLifecycleTests(TestCase):
         self.assertEqual(th.status, TenantHouse.Status.EXITED)
         self.assertEqual(self.house.occupancy_status, House.Occupancy.VACANT)
 
-    def test_exit_keeps_house_occupied_when_other_active_remains(self):
+    def test_exit_keeps_other_house_occupied(self):
+        """Exiting a tenancy on one house should not affect the occupancy
+        status of a different house that still has an active tenancy."""
+        house2 = House.objects.create(estate=self.estate, house_number="2")
         th_exit = TenantHouse.objects.create(
             tenant=self.tenant, house=self.house, status=TenantHouse.Status.ACTIVE
         )
         tenant2 = Tenant.objects.create(full_name="Tenant Y", phone="+256700900013")
         TenantHouse.objects.create(
-            tenant=tenant2, house=self.house, status=TenantHouse.Status.ACTIVE
+            tenant=tenant2, house=house2, status=TenantHouse.Status.ACTIVE
         )
         self.house.occupancy_status = House.Occupancy.OCCUPIED
         self.house.save()
+        house2.occupancy_status = House.Occupancy.OCCUPIED
+        house2.save()
         c = Client()
         c.force_login(self.admin)
         c.post(reverse("core:tenancy-exit", args=[th_exit.pk]))
-        self.house.refresh_from_db()
-        self.assertEqual(self.house.occupancy_status, House.Occupancy.OCCUPIED)
+        house2.refresh_from_db()
+        self.assertEqual(house2.occupancy_status, House.Occupancy.OCCUPIED)
 
     def test_derived_status_transitions(self):
         th = TenantHouse.objects.create(tenant=self.tenant, house=self.house)

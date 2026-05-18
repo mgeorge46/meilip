@@ -47,6 +47,9 @@
         <li><a href="{% url 'billing:supplier-payment-list' %}">Supplier Payments</a></li>
         {% endif %}
         <li><a href="{% url 'billing:expense-claim-list' %}">Expense Claims</a></li>
+        {% if request.user.is_superuser or 'ADMIN' in user_role_names or 'FINANCE' in user_role_names or 'ACCOUNT_MANAGER' in user_role_names %}
+        <li><a href="{% url 'billing:landlord-statement-index' %}">Landlord Statements</a></li>
+        {% endif %}
       </ul>
     </li>
     {% endif %}

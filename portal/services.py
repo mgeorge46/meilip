@@ -25,7 +25,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from accounting.models import JournalEntry
-from billing.models import Invoice, Payment, PaymentAllocation
+from billing.models import ApprovalStatus, Invoice, Payment, PaymentAllocation
 
 
 MAX_STATEMENT_MONTHS = 6
@@ -167,9 +167,9 @@ def build_statement_context(landlord, period_start: date, period_end: date) -> S
         paid_in_window = int(
             PaymentAllocation.objects.filter(
                 invoice=inv,
-                payment__received_on__gte=period_start,
-                payment__received_on__lte=period_end,
-                payment__approval_status=Payment.ApprovalStatus.APPROVED,
+                payment__received_at__date__gte=period_start,
+                payment__received_at__date__lte=period_end,
+                payment__approval_status__in=[ApprovalStatus.APPROVED, ApprovalStatus.AUTO_APPROVED],
             ).aggregate(s=Sum("amount"))["s"] or 0
         )
         balance = cost - int(inv.amount_paid or 0)

@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import models, transaction
 from django.http import HttpResponseRedirect
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.generic import CreateView, DetailView, UpdateView, View
@@ -839,28 +839,86 @@ class AdvancePaymentsReportView(RoleRequiredMixin, PaginatedListView):
         return ctx
 
 
-class TenantStatementView(RoleRequiredMixin, DetailView):
+class TenantStatementView(RoleRequiredMixin, View):
+    """Tenant statement — period-filtered (max 3 months) showing invoices,
+    payments, and balance summary for a given tenancy."""
     required_roles = STAFF_ROLES
-    model = TenantHouse
-    template_name = "billing/tenant_statement.html"
-    context_object_name = "tenancy"
 
-    def get_context_data(self, **kwargs):
-        from decimal import Decimal
-        ctx = super().get_context_data(**kwargs)
+    def _parse_dates(self, request):
+        from datetime import date as _date
+        from calendar import monthrange
         today = timezone.localdate()
-        invoices = self.object.invoices.exclude(
-            status__in=[Invoice.Status.VOIDED, Invoice.Status.CANCELLED]
-        ).order_by("period_from")
+        try:
+            ps = _date.fromisoformat(request.GET.get("period_start", ""))
+        except (ValueError, TypeError):
+            ps = today.replace(day=1)
+        try:
+            pe = _date.fromisoformat(request.GET.get("period_end", ""))
+        except (ValueError, TypeError):
+            # Default to end of current month
+            pe = today.replace(day=monthrange(today.year, today.month)[1])
+        # Cap at 3 months
+        cap_y = ps.year + (ps.month + 2) // 12
+        cap_m = (ps.month + 2) % 12 or 12
+        cap_end = _date(cap_y, cap_m, monthrange(cap_y, cap_m)[1])
+        if pe > cap_end:
+            pe = cap_end
+        # Don't allow end before start
+        if pe < ps:
+            pe = ps.replace(day=monthrange(ps.year, ps.month)[1])
+        return ps, pe
+
+    def get(self, request, pk):
+        from decimal import Decimal
+        th = get_object_or_404(TenantHouse, pk=pk)
+        ps, pe = self._parse_dates(request)
+        today = timezone.localdate()
+
+        invoices = (
+            th.invoices
+            .exclude(status__in=[Invoice.Status.VOIDED, Invoice.Status.CANCELLED])
+            .filter(issue_date__gte=ps, issue_date__lte=pe)
+            .order_by("issue_date", "period_from")
+        )
+
+        # Payments for this tenant within the period
+        from billing.models import Payment, ApprovalStatus
+        payments = (
+            Payment.objects
+            .filter(
+                tenant=th.tenant,
+                received_at__date__gte=ps,
+                received_at__date__lte=pe,
+                approval_status__in=[
+                    ApprovalStatus.APPROVED, ApprovalStatus.AUTO_APPROVED,
+                ],
+            )
+            .order_by("received_at")
+        )
+
         arrears = Decimal("0")
         current = Decimal("0")
+        total_billed = Decimal("0")
+        total_paid = Decimal("0")
         for inv in invoices:
+            total_billed += inv.total or Decimal("0")
+            total_paid += inv.amount_paid
             if inv.due_date < today and inv.outstanding > 0:
                 arrears += inv.outstanding
             else:
                 current += inv.outstanding
-        ctx.update({"invoices": invoices, "arrears": arrears, "current": current})
-        return ctx
+
+        return render(request, "billing/tenant_statement.html", {
+            "tenancy": th,
+            "invoices": invoices,
+            "payments": payments,
+            "arrears": arrears,
+            "current": current,
+            "total_billed": total_billed,
+            "total_paid": total_paid,
+            "period_start": ps,
+            "period_end": pe,
+        })
 
 
 class LandlordStatementView(RoleRequiredMixin, View):
